@@ -32,7 +32,7 @@ kind: "package-bundle"
 <details>
 <summary>实现内部</summary>
 
-[cordis.patch.yml](cordis.patch.yml) 禁用旧 `browser-auth` 行，插入独立的单用户提供者、SQLite 存储和认证 UI。此补丁要求 WebServer 请求门禁，覆盖启动及提供者卸载阶段。移除此层会恢复默认组合。Loader 补丁中的名称用于匹配已有插件，不会替换插件名称。
+[cordis.patch.yml](cordis.patch.yml) 禁用旧 `browser-auth` 行，插入独立的单用户提供者、SQLite 存储和认证 UI。此补丁要求 WebServer 请求门禁，覆盖启动及提供者卸载阶段，并通过 `ui-settings.allowRemotePersistence` 启用远程 Host 设置持久化。移除此层会恢复默认组合。Loader 补丁中的名称用于匹配已有插件，不会替换插件名称。
 
 </details>
 

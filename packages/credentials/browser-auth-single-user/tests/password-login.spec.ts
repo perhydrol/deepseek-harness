@@ -44,7 +44,7 @@ it('requires pre-auth CSRF, consumes it on login and keeps the session proof sta
       expect(gate(gateRequest(path, 'POST'), 'http')).toEqual({ kind: 'allow' })
       expect(gate(gateRequest(path), 'http')).toEqual({ kind: 'reject', status: 401 })
     }
-    for (const path of ['/', '/api', '/plugins/private.js', '/auth/security', '/auth/login/private', '/auth/%6cogin']) {
+    for (const path of ['/', '/api', '/plugins/private.js', '/auth/security', '/auth/security/state', '/auth/login/private', '/auth/%6cogin']) {
       expect(gate(gateRequest(path), 'http')).toEqual({ kind: 'reject', status: 401 })
     }
     const foreignOrigin = gateRequest('/auth/login')

@@ -146,7 +146,7 @@ export class AuthOperations {
       this.sessions.logout(session.sessionId)
       return reply({ authenticated: false }, [this.cookie(this.sessionCookie, '', 0)])
     }
-    if (operation === 'security') return reply({
+    if (operation === 'security/state') return reply({
       passkeys: state.passkeys.map(key => ({ id: key.id, label: key.label, createdAt: key.createdAt, lastUsedAt: key.lastUsedAt })),
       sessionCount: state.sessions.filter(row => row.expiresAt > Date.now()).length,
     })

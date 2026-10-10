@@ -6,6 +6,7 @@
     "tsBuildInfoFile": "lib/tsconfig.host.tsbuildinfo"
   },
   "files": [
+    "src/browser-settings-config.ts",
     "src/developer-tools-settings.ts",
     "src/index.ts"
   ],
@@ -18,6 +19,9 @@
     },
     {
       "path": "../../settings/settings"
+    },
+    {
+      "path": "../../host/webserver"
     }
   ]
 }

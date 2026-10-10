@@ -32,7 +32,7 @@ Configure the `browser-auth-single-user` row with the canonical `publicOrigin`, 
 <details>
 <summary>Implementation internals</summary>
 
-[cordis.patch.yml](cordis.patch.yml) disables the legacy `browser-auth` row and inserts a distinct single-user provider, SQLite store and authentication UI. The patch requires the WebServer request gate, including startup and provider unload. Removing this layer restores the default composition. Loader patch names match existing plugins; they do not replace plugin names.
+[cordis.patch.yml](cordis.patch.yml) disables the legacy `browser-auth` row and inserts a distinct single-user provider, SQLite store and authentication UI. The patch requires the WebServer request gate, including startup and provider unload, and enables remote Host settings persistence through `ui-settings.allowRemotePersistence`. Removing this layer restores the default composition. Loader patch names match existing plugins; they do not replace plugin names.
 
 </details>
 

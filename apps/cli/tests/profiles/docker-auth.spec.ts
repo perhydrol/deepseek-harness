@@ -32,5 +32,6 @@ it('composes the Docker profile with one provider, loopback proxy trust and a re
       upstream: { kind: 'proxy', trustedPeers: ['127.0.0.1/32'], clientIpHeader: 'x-hydrogen-client-ip' },
     })
     expect(rows.find(row => row.id === 'webserver')?.config).toMatchObject({ requireRequestGate: true })
+    expect(rows.find(row => row.id === 'ui-settings')?.config).toMatchObject({ allowRemotePersistence: true })
   } finally { await rm(home, { recursive: true, force: true }) }
 }, 35_000)

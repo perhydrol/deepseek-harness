@@ -37,3 +37,17 @@ it('clears the password immediately and disables actions while login is pending'
   pending.resolve(Response.json({ error: { code: 'auth/invalid-credentials' } }, { status: 401 }))
   await vi.waitFor(() => { expect(getByRole(root, 'status').textContent).toContain('Verification failed') })
 })
+
+it('renders the authenticated security controls from their separate JSON endpoint', async () => {
+  const root = document.createElement('main')
+  document.body.append(root)
+  const fetcher = vi.fn<typeof fetch>(async (input) => {
+    if (input === '/auth/state') return Response.json({
+      authenticated: true, csrf: 'proof', password: true, passkey: false,
+    })
+    if (input === '/auth/security/state') return Response.json({ sessionCount: 1, passkeys: [] })
+    throw new Error('Unexpected authentication endpoint')
+  })
+  await mountAuthPage(root, new AuthClient('/', fetcher), 'security', vi.fn(), 'en')
+  expect(root.textContent).toMatchInlineSnapshot('"DeepSeek HarnessSign-in and securityManage this browser session, passkeys and your sign-in password.Back to appSign out of this browserVerify sensitive changesEach sensitive change requires fresh verification. Your password is not retained.Verification methodPasswordPasskeyCurrent passwordPasskeysActive browser sessions: 1No passkeys added yet.Passkey nameAdd passkeyChange passwordNew passwordRepeat new passwordChange passwordSign out of all browsers"')
+})

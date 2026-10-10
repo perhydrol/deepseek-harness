@@ -11,6 +11,7 @@ import type {} from '@deepseek-ai/dsh-settings/types'
 import { SettingsSchemaService } from './schema.ts'
 import { ConfigForms } from './config-form.ts'
 import { SettingsDescribeMirror } from './settings-mirror.ts'
+import { BrowserSettingsConfig, BROWSER_SETTINGS_CONFIG_GLOBAL } from '../browser-settings-config.ts'
 
 export type {
   SettingsLauncherOwnerProps, SettingsGeneralItemOwnerProps, SettingsHeaderOwnerProps, SettingsOnboardingOwnerProps,
@@ -36,7 +37,9 @@ export const inject = ['remote', 'remote.settings']
 export function apply(ctx: Context): void {
   const schema = new SettingsSchemaService(ctx)
   // Every form uses the persistence mode resolved from the connected Host.
-  const persistence = ctx.remote.$host.isLoopback ? 'host' : 'memory'
+  const payload: unknown = Reflect.get(globalThis, BROWSER_SETTINGS_CONFIG_GLOBAL)
+  const config = BrowserSettingsConfig(payload === undefined ? {} : payload)
+  const persistence = ctx.remote.$host.isLoopback || config.allowRemotePersistence ? 'host' : 'memory'
   const mirror = new SettingsDescribeMirror(ctx, persistence)
   ctx.effect(() => {
     const disposers = [

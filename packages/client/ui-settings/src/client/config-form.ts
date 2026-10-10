@@ -256,7 +256,7 @@ export class ConfigForms extends Service {
    * @param ctx - the providing plugin's context.
    * @param config - the shared describe mirror every shared form derives from,
    * the settings-owned schema operations, and the Host persistence the provider
-   * resolved from `remote.$host`.
+   * resolved from the deployment's browser settings options and local carrier facts.
    */
   constructor(ctx: Context, config: {
     mirror: SettingsDescribeMirror

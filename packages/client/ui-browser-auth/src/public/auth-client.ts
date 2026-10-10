@@ -77,7 +77,7 @@ export class AuthClient {
  * Read redacted credential metadata for the security page.
  * @returns redacted key metadata and active-session count.
  */
-  async security(): Promise<SecurityState> { return this.request('security', {}, securitySchema) }
+  async security(): Promise<SecurityState> { return this.request('security/state', {}, securitySchema) }
 
   /**
  * Revoke the current session and clear its Cookie.

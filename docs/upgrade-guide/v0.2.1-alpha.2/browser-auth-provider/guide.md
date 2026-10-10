@@ -11,6 +11,8 @@ English | [中文](guide.zh.md)
 
 Connection requires `ctx.browserAuth` instead of constructing browser authentication from `ctx.credentials`. Web and Desktop profiles mount the launch-token provider automatically. Custom Connection compositions must add it. `cookieMaxAgeDays` belongs to that provider; residual Connection settings fail activation. Authenticated `PeerAdmission` results also contain a session `lifetime`.
 
+Single-user security metadata uses `POST /auth/security/state`; `GET /auth/security` serves only the page. Update direct callers and deploy matching Host and authentication-page assets together.
+
 ## Migration
 
 1. Add `@hydrogen/dsh-browser-auth-launch-token` beside `@deepseek-ai/dsh-client-connection` in custom profile patches or Cordis configurations. Keep the credential provider.

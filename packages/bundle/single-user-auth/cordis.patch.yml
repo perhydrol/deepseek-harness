@@ -13,6 +13,10 @@
     compressionThresholdBytes: 1024
     requireRequestGate: true
 
+- id: ui-settings
+  config:
+    allowRemotePersistence: true
+
 - insert:
     - id: browser-auth-store
       name: '@hydrogen/dsh-browser-auth-store-sqlite'

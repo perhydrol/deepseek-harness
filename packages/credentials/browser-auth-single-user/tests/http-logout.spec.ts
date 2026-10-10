@@ -54,6 +54,11 @@ it.each(['logout', 'logout-all', 'password/change', 'passkeys/delete'])('deliver
     const login = await call('/auth/password/login', 'POST', preauth, String(before.body.csrf), { password: 'private test password' })
     const cookie = login.cookies[0]?.split(';')[0] ?? ''
     const authenticated = await call('/auth/state', 'GET', cookie)
+    expect((await call('/auth/security/state', 'POST', cookie, 'invalid-proof')).status).toBe(403)
+    const security = await call('/auth/security/state', 'POST', cookie, String(authenticated.body.csrf))
+    expect(security.status).toBe(200)
+    expect(security.body.sessionCount).toBe(1)
+    expect(security.body.passkeys).toHaveLength(1)
     let mutation: object = {}
     if (operation !== 'logout') {
       const reauth = await call('/auth/reauth/password', 'POST', cookie, String(authenticated.body.csrf), {

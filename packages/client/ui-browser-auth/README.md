@@ -26,7 +26,7 @@ Use the [single-user bundle](../../bundle/single-user-auth/README.md). The Host 
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
-Login supports password and explicit browser passkey ceremonies. Security management supports registration, rename, deletion, password changes and session revocation. Sensitive mutations consume fresh reauthentication grants. Proofs remain in memory. Authentication transports are called as standalone functions, preserving native browser fetch invocation. The client probes authentication before business-module startup and after connection loss or focus; transport failures preserve recoverable state.
+Login supports password and explicit browser passkey ceremonies. Security management supports registration, rename, deletion, password changes and session revocation. The security document uses `GET /auth/security`; its authenticated metadata uses the distinct `POST /auth/security/state` endpoint. Sensitive mutations consume fresh reauthentication grants. Proofs remain in memory. Authentication transports are called as standalone functions, preserving native browser fetch invocation. The client probes authentication before business-module startup and after connection loss or focus; transport failures preserve recoverable state.
 
 ## Dev Note
 
