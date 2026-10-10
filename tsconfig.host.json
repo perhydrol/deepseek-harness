@@ -221,6 +221,9 @@
     "scripts/client-bundle-purity.spec.ts"
   ],
   "references": [
+    { "path": "./packages/bundle/single-user-auth" },
+    { "path": "./packages/client/ui-browser-auth/tsconfig.host.json" },
+    { "path": "packages/credentials/browser-auth-store-sqlite" },
     { "path": "./packages/experimental/client-ui-cot-translation/tsconfig.host.json" },
     { "path": "./packages/experimental/cot-translation-bundle" },
     { "path": "./packages/experimental/session-search" },
@@ -328,6 +331,9 @@
     { "path": "./packages/session-query/session-query-sqlite" },
     { "path": "./packages/session-query/session-log-export/tsconfig.host.json" },
     { "path": "./packages/settings/settings" },
+    { "path": "./packages/credentials/browser-auth-single-user" },
+    { "path": "./packages/credentials/browser-auth" },
+    { "path": "./packages/credentials/browser-auth-launch-token" },
     { "path": "./packages/credentials/credentials" },
     { "path": "./packages/credentials/credentials-local" },
     { "path": "./packages/credentials/authorization" },

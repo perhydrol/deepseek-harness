@@ -54,6 +54,8 @@ interface Config {
    * over plain HTTP.
    */
   tls?: TlsConfig
+  /** Deny every route and upgrade while no request gate is installed. Required by authenticated deployments. */
+  requireRequestGate?: boolean
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -150,6 +152,13 @@ Source: [`packages/client/connection/src/rpc.ts`](../../packages/client/connecti
 The browser HTTP carrier service. Activation loads any configured TLS material, then listens immediately; a material or listen failure rejects initialization, and the boot process reports the failed fiber. Route registration order does not affect requests because configured named routes must be distinct, and the fallback handler answers anything not yet claimed during startup with 404 until its owner registers.
 
 ```ts cordis-catalog
+/**
+ * Install the sole request gate before route dispatch.
+ * @param gate - synchronous admission for every HTTP request and upgrade.
+ * @returns disposer; required listeners revert to rejecting every request.
+ */
+registerRequestGate(gate: WebRequestGate): () => void
+
 /**
  * Register a named route. Duplicate (kind, path) throws — route patterns are
  * a composition-level contract, so a collision is a misconfiguration.
@@ -259,3 +268,5 @@ Collect the structured index injection table. Emitted on every index render and 
 
 Source: [`packages/host/webserver/src/index.ts`](../../packages/host/webserver/src/index.ts)
 <!-- END GENERATED cordis-surface -->
+
+设置 `requireRequestGate: true` 后，缺少准入检查会拒绝所有 HTTP 路由、静态回退和协议升级。`registerRequestGate` 安装同步检查并返回清理函数；返回的会话截止时间和撤销信号控制传输生命周期。准入检查由认证提供者定义。

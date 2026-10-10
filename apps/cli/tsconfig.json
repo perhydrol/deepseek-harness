@@ -76,6 +76,15 @@
     },
     {
       "path": "../../packages/util/atomic-write"
+    },
+    {
+      "path": "../../packages/credentials/browser-auth-single-user"
+    },
+    {
+      "path": "../../packages/credentials/browser-auth-store-sqlite"
+    },
+    {
+      "path": "../../packages/credentials/browser-auth"
     }
   ]
 }

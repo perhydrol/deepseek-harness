@@ -1,0 +1,26 @@
+# Select this private layer after the web-app bundle and configure its provider.
+- id: browser-auth
+  disabled: true
+
+# Patch config replaces the complete config object.
+- id: webserver
+  config:
+    host: !!js ctx.webStartup.host ?? '127.0.0.1'
+    port: !!js ctx.webStartup.port ?? 3080
+    tls: !!js ctx.webStartup.tls
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
+    requireRequestGate: true
+
+- insert:
+    - id: browser-auth-store
+      name: '@hydrogen/dsh-browser-auth-store-sqlite'
+      config:
+        path: !!js ctx.dshHomePath('auth', 'browser.sqlite')
+
+    - id: browser-auth-single-user
+      name: '@hydrogen/dsh-browser-auth-single-user'
+
+    - id: ui-browser-auth
+      name: '@hydrogen/dsh-client-ui-browser-auth'

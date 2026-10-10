@@ -45,6 +45,12 @@ const NO_MODEL_EXPERIENCE_SECTION: Readonly<Record<string, string>> = {
  * blocks. A package moves on or off this list with its context behavior.
  */
 const SENTENCE_MODEL_EXPERIENCE: Readonly<Record<string, SentenceContract>> = {
+  'packages/credentials/browser-auth-store-sqlite': { kind: 'none', reason: 'Browser credential storage does not contribute model input or Session events.' },
+  'packages/credentials/browser-auth-single-user': { kind: 'none', reason: 'Browser login and management do not contribute model input or Session events.' },
+  'packages/client/ui-browser-auth': { kind: 'none', reason: 'Authentication pages do not contribute model input or Session events.' },
+  'packages/bundle/single-user-auth': { kind: 'none', reason: 'Browser login composition does not contribute model input or Session events.' },
+  'packages/credentials/browser-auth': { kind: 'none', reason: 'Browser admission does not contribute model input or Session events.' },
+  'packages/credentials/browser-auth-launch-token': { kind: 'none', reason: 'Launch-token cookies authenticate browser requests without model input.' },
   'packages/experimental/client-ui-cot-translation': { kind: 'indirect', reason: 'The translator owns optional paid queries; normal Session activation delegates startup context to the preset.' },
   'packages/experimental/cot-translation-bundle': { kind: 'indirect', reason: 'The GUI consumer delegates paid query prompts to the translator and normal activation context to the Session preset.' },
   'packages/client/product-analytics': { kind: 'none', reason: 'Desktop analytics observes selected interactions without contributing model context or Session events.' },

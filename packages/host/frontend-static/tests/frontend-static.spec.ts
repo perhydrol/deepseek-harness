@@ -1,3 +1,4 @@
+import * as LaunchTokenProvider from '@hydrogen/dsh-browser-auth-launch-token'
 /**
  * REAL-composition coverage: a test-only cordis.yml booted through the
  * vendored Loader mounts the webserver and frontend-static rows, and every
@@ -50,6 +51,7 @@ async function loadComposition(): Promise<Context> {
     '  config:',
     "    host: '127.0.0.1'",
     '    port: 0',
+    "- name: '@hydrogen/dsh-browser-auth-launch-token'",
     "- name: '@deepseek-ai/dsh-client-connection'",
     '- id: frontend',
     "  name: '@deepseek-ai/dsh-host-frontend-static'",
@@ -65,6 +67,7 @@ async function loadComposition(): Promise<Context> {
   const modules = new Map<string, unknown>([
     ['@deepseek-ai/dsh-credentials-local', LocalCredentials],
     ['@deepseek-ai/dsh-host-webserver', HttpServer],
+    ['@hydrogen/dsh-browser-auth-launch-token', LaunchTokenProvider],
     ['@deepseek-ai/dsh-client-connection', Connection],
     ['@deepseek-ai/dsh-host-frontend-static', FrontendStatic],
   ])

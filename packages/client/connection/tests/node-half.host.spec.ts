@@ -104,7 +104,7 @@ async function mounted(config?: ConnectionConfig, protocol: WebServer['protocol'
   const ctx = new Context()
   const routes: WebRoute[] = []
   const upgrades: WebUpgradeRoute[] = []
-  provideBrowserCredentials(ctx)
+  await provideBrowserCredentials(ctx)
   ctx.provide('webServer', fakeHttpServer(routes, upgrades, '127.0.0.1', protocol) as WebServer)
   const fiber = ctx.plugin({ inject: [...inject], apply }, config)
   await fiber.await()
@@ -191,7 +191,7 @@ describe('connection node half', () => {
 
   it('provides the carrier-neutral service without a Web server', async () => {
     const ctx = new Context()
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
     expect(ctx.get('connection')).toBeInstanceOf(Object)
@@ -202,7 +202,7 @@ describe('connection node half', () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
     const upgrades: WebUpgradeRoute[] = []
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.example'] })
     try {
       await fiber.await()
@@ -282,7 +282,7 @@ describe('connection node half', () => {
     { recovery: { backoffFactor: NaN }, error: /backoffFactor.*finite/ },
   ])('rejects invalid recovery timing before acquiring Host resources: $recovery', async ({ recovery, error }) => {
     const ctx = new Context()
-    await expect(apply(ctx, { recovery })).rejects.toThrow(error)
+    expect(() => { apply(ctx, { recovery }) }).toThrow(error)
     expect(ctx.get('connection')).toBeUndefined()
   })
 
@@ -314,8 +314,8 @@ describe('connection node half', () => {
     ctx.provide('attachments', {
       imageLimits: { maxMessageImageBytes: 20 * 1024 * 1024 },
     } as AttachmentStore)
-    await expect(apply(ctx, { maxRequestBodyBytes: 1024 }))
-      .rejects.toThrow(/must be at least .* aggregate image limit/)
+    expect(() => { apply(ctx, { maxRequestBodyBytes: 1024 }) })
+      .toThrow(/must be at least .* aggregate image limit/)
     expect(routes).toHaveLength(0)
   })
 
@@ -323,7 +323,7 @@ describe('connection node half', () => {
     const routes: WebRoute[] = []
     const upgrades: WebUpgradeRoute[] = []
     const ctx = new Context()
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, upgrades) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.internal/path'] })
     await expect(fiber).rejects.toThrow(/not a bare host\[:port\] authority/)
@@ -425,7 +425,7 @@ describe('connection node half', () => {
   it('provides a disposable dedicated RPC channel', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
@@ -474,7 +474,7 @@ describe('connection node half', () => {
   it('dispatches claimed /api endpoints and withdraws the claim', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.example'] })
     await fiber.await()
@@ -569,7 +569,10 @@ describe('connection node half', () => {
     expect(connection.admit(fakeRequest({ host: 'other.example' }))).toEqual({ rejection: 403 })
     expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080' }))).toEqual({ rejection: 401 })
     const cookie = browserCookie(connection, '127.0.0.1:3080')
-    expect(connection.admit(fakeRequest({ host: '127.0.0.1:3080', cookie }))).toEqual({ peer: connection.operator })
+    const admission = connection.admit(fakeRequest({ host: '127.0.0.1:3080', cookie }))
+    if ('rejection' in admission) throw new Error('valid cookie was refused')
+    expect(admission.peer).toBe(connection.operator)
+    expect(admission.lifetime.revoked.aborted).toBe(false)
 
     const route = routes.find(candidate => candidate.path === API_PATH)!
     const request: ClientRequest = {
@@ -599,7 +602,7 @@ describe('connection node half', () => {
   it('applies the configured trust fence and JSON envelope checks to generic channels', async () => {
     const ctx = new Context()
     const routes: WebRoute[] = []
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     ctx.provide('webServer', fakeHttpServer(routes, []) as WebServer)
     const fiber = ctx.plugin({ inject: [...inject], apply }, { trustedHosts: ['harness.example'] })
     await fiber.await()

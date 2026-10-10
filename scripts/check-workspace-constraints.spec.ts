@@ -443,3 +443,27 @@ it('requires the standalone shortcut protocol and rejects unrelated runtime file
       .toEqual([expect.stringContaining('package.json files must be')])
   }
 })
+
+describe('private Hydrogen packages', () => {
+  const dir = 'packages/credentials/browser-auth'
+  const name = '@hydrogen/dsh-browser-auth'
+
+  it('accepts a private Hydrogen package without publication metadata', () => {
+    expect(checkWorkspaceManifest({ dir, manifest: { name, private: true } })).toEqual([])
+  })
+
+  it('requires Hydrogen packages to remain private', () => {
+    expect(checkWorkspaceManifest({ dir, manifest: { name } }))
+      .toEqual([expect.stringContaining(name + ': Hydrogen package must set "private": true')])
+  })
+
+  it('rejects publication configuration on Hydrogen packages', () => {
+    expect(checkWorkspaceManifest({ dir, manifest: { name, private: true, publishConfig: { access: 'public' } } }))
+      .toEqual([expect.stringContaining(name + ': Hydrogen package must not set publishConfig')])
+  })
+
+  it('keeps official packages subject to their release rules', () => {
+    expect(checkWorkspaceManifest({ dir, manifest: { name: '@deepseek-ai/dsh-browser-auth', private: true } }))
+      .toEqual(expect.arrayContaining([expect.stringContaining('@deepseek-ai/dsh-browser-auth: release member must not set "private": true')]))
+  })
+})

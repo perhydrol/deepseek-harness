@@ -35,3 +35,5 @@ To terminate on the listener, pass `--tls-cert` and `--tls-key`, each a path res
 The printed URL carries a process credential, so share it only with intended users.
 
 The [Web app reference](../../../packages/bundle/web-app/README.md#public-deployments) documents the `--public-url`, `--trusted-host`, and `--tls-cert`/`--tls-key` command-line options. In the Web profile, `publicUrl` configures the `web-runtime` row, `trustedHosts` configures the [Connection row](../../../packages/client/connection/README.md), and `tls` configures the [webserver row](../../../docs/subsystems/web-server.md#config).
+
+For the private Hydrogen image with password and passkey login, use the [Docker deployment guide](docker-deployment.md).

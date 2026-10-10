@@ -12,7 +12,8 @@ import { clientRequestSchema } from './rpc-schema.ts'
 import { bridge } from './http-bridge.ts'
 import { isRemoteAuthority, isTrustedApiRequest } from './api-request-trust.ts'
 import { API_PATH } from './api-path.ts'
-import type { BrowserAuth } from './browser-auth.ts'
+import { isAdmissionLive } from '@hydrogen/dsh-browser-auth'
+import type { BrowserAuthHandle, BrowserRequest } from '@hydrogen/dsh-browser-auth'
 import { OperatorPeer } from './operator-peer.ts'
 import type {
   PeerAdmission,
@@ -77,7 +78,7 @@ export class HostConnectionService extends Service implements HostConnectionHand
   constructor(
     ctx: Context,
     private readonly trustedHosts: readonly string[],
-    private readonly browserAuth: BrowserAuth,
+    private readonly browserAuth: BrowserAuthHandle,
   ) {
     super(ctx, 'connection')
     this.operator = new OperatorPeer(ctx)
@@ -107,20 +108,24 @@ export class HostConnectionService extends Service implements HostConnectionHand
   requestRejection(request: ConnectionTrustRequest): ConnectionRequestRejection {
     const carrier = this.ctx.get('webServer')
     if (!isTrustedApiRequest(request, this.trustedHosts, carrier?.host, carrier?.protocol ?? 'http:')) return 403
-    return this.browserAuth.isAuthenticated(request, carrier?.protocol === 'https:') ? undefined : 401
+    const admission = this.browserAuth.authenticate(toBrowserRequest(request))
+    return admission.kind === 'authenticated' && isAdmissionLive(admission.lifetime, Date.now()) ? undefined : admission.kind === 'rejected' ? admission.status : 401
   }
 
   /** A request that passes the fence and authentication speaks for the operator. */
   admit(request: ConnectionTrustRequest): PeerAdmission {
     const rejection = this.requestRejection(request)
-    return rejection === undefined ? { peer: this.operator } : { rejection }
+    if (rejection !== undefined) return { rejection }
+    const admission = this.browserAuth.authenticate(toBrowserRequest(request))
+    return admission.kind === 'authenticated' && isAdmissionLive(admission.lifetime, Date.now())
+      ? { peer: this.operator, lifetime: admission.lifetime } : { rejection: admission.kind === 'rejected' ? admission.status : 401 }
   }
 
   /**
    * Authenticate an index request; native TLS listeners mint Secure cookies.
    */
   authorizeIndex(request: ConnectionIndexRequest, response: ConnectionIndexResponse): boolean {
-    return this.browserAuth.authorizeIndex(request, response, this.ctx.get('webServer')?.protocol === 'https:')
+    return this.browserAuth.authorizeIndex(toBrowserRequest(request), response)
   }
 
   /** Add this process's launch token to the clean application URL. */
@@ -334,4 +339,9 @@ function assertFetchRoute(route: ConnectionFetchRoute): void {
   if (methods.size !== route.methods.length) {
     throw new Error(`connection: exact Fetch route ${JSON.stringify(route.path)} repeats a method`)
   }
+}
+
+/** Transport adapters supply socket facts independently of request JSON. */
+function toBrowserRequest(request: ConnectionTrustRequest): BrowserRequest {
+  return { headers: request.headers, method: request.method ?? 'GET', url: request.url ?? '/', remoteAddress: request.remoteAddress ?? request.socket?.remoteAddress }
 }

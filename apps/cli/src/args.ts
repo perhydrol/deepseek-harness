@@ -57,8 +57,19 @@ interface PluginInvocation {
   args: string[]
 }
 
+
+/** Offline single-operator credential maintenance; passwords never come from argv. */
+export interface AuthInvocation {
+  mode: 'auth'
+  command: 'init' | 'reset-password' | 'reconfigure'
+  profile: string
+  patches: string[]
+  clearPasskeys: boolean
+  restoredBackup: boolean
+}
+
 /** The resolved `dsh` invocation. Help, version, and errors exit inside {@link parseDshArgs}. */
-export type DshInvocation = ProfileInvocation | DumpConfigInvocation | DumpConfigSchemaInvocation | PluginInvocation
+export type DshInvocation = ProfileInvocation | DumpConfigInvocation | DumpConfigSchemaInvocation | PluginInvocation | AuthInvocation
 
 /** Launcher flags for profile boot and configuration dumps. */
 interface BootOptions {
@@ -145,6 +156,7 @@ function resolveBoot(program: Command, profile: string, options: BootOptions, ar
  */
 export function parseDshArgs(argv: readonly string[], version: string, manageDesktopProfile = false): DshInvocation {
   const first = argv[0]
+  if (first === 'auth') return parseAuthArgs(argv.slice(1))
   let resolved: DshInvocation | undefined
   // Annotated, not inferred: the actions below call back into `program`, and an
   // inferred type would be circular through its own chain.
@@ -213,4 +225,30 @@ export function parseDshArgs(argv: readonly string[], version: string, manageDes
   /* v8 ignore next -- an action resolves or Commander throws */
   if (resolved === undefined) throw new Error('dsh: no invocation resolved')
   return resolved
+}
+
+function parseAuthArgs(argv: readonly string[]): AuthInvocation {
+  const command = new Command('dsh auth')
+    .exitOverride()
+    .argument('<operation>', 'init, reset-password or reconfigure')
+    .requiredOption('--profile <name>', 'existing profile whose credentials to maintain')
+    .option('--patch <path>', 'profile overlay (repeatable)', collect)
+    .option('--clear-passkeys', 'explicitly delete all stored passkeys')
+    .option('--restored-backup', 'acknowledge offline recovery of a restored backup')
+  try {
+    command.parse(argv, { from: 'user' })
+    const operation = authOperation(command.args[0])
+    const options = command.opts<{ profile: string; patch?: string[]; clearPasskeys?: boolean; restoredBackup?: boolean }>()
+    if (options.profile === '') command.error('error: --profile needs a name')
+    rejectElectronProfile(command, options.profile)
+    return {
+      mode: 'auth', command: operation, profile: options.profile, patches: options.patch ?? [],
+      clearPasskeys: options.clearPasskeys === true, restoredBackup: options.restoredBackup === true,
+    }
+  } catch (error) { return process.exit(error instanceof CommanderError ? error.exitCode : 1) }
+}
+
+function authOperation(value: string | undefined): AuthInvocation['command'] {
+  if (value === 'init' || value === 'reset-password' || value === 'reconfigure') return value
+  throw new InvalidArgumentError('auth operation must be init, reset-password or reconfigure')
 }

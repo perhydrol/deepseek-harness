@@ -115,6 +115,7 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-client-ui-user-questions` | no | Web ask_user_question composer takeover and plan-review presentation UI |
 | `@deepseek-ai/dsh-client-ui-workflow-run` | no | Durable workflow-run Conversation Node and nested member disclosure for dsh web |
 | `@deepseek-ai/dsh-client-ui-workspace` | no | Workspace picker plugin: one WorkspacePicker registered into the sidebar and empty-state workspace slots |
+| `@hydrogen/dsh-client-ui-browser-auth` | no | Independent browser login and single-user security management pages with a settings entry |
 
 ## compaction
 
@@ -160,6 +161,9 @@ Every package below exports a Cordis plugin that a bundle patch can name in a Lo
 | `@deepseek-ai/dsh-authorization` | no | Authorization seam (ctx.authorization): plugin-owned flows that obtain a credential through a conversation with the human |
 | `@deepseek-ai/dsh-credentials-local` | yes | File-backed credentials provider ($DSH_HOME/.env under the live process environment) for the DeepSeek Harness |
 | `@deepseek-ai/dsh-deepseek-account-platform` | yes | Authorize DeepSeek accounts through browser PKCE |
+| `@hydrogen/dsh-browser-auth-launch-token` | yes | Process launch-token browser authentication provider |
+| `@hydrogen/dsh-browser-auth-single-user` | yes | Single-operator password and passkey browser authentication |
+| `@hydrogen/dsh-browser-auth-store-sqlite` | yes | Exclusively owned Linux SQLite authentication store |
 
 ## deliverables
 

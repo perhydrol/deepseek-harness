@@ -1,9 +1,10 @@
+import * as LaunchTokenProvider from '@hydrogen/dsh-browser-auth-launch-token'
 import type { Context } from '@deepseek-ai/cordis'
 
 const browserCookies = new WeakMap<Context, string>()
 
 /** Provide an in-memory credential-record owner for a mounted Connection plugin. */
-export function provideBrowserCredentials(ctx: Context): void {
+export async function provideBrowserCredentials(ctx: Context): Promise<void> {
   const records = new Map<unknown, unknown>()
   ctx.provide('credentials', {
     async modifyRecord(
@@ -16,6 +17,7 @@ export function provideBrowserCredentials(ctx: Context): void {
       return next ?? current
     },
   } as never)
+  await ctx.plugin(LaunchTokenProvider).await()
 }
 
 /**

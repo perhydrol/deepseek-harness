@@ -420,7 +420,11 @@ export function checkWorkspaceManifest({ dir, manifest }: WorkspaceManifest): st
     && manifest.name !== undefined
     && publicNativePackages.has(manifest.name)
 
-  if (isPublicNativePackage) {
+  // Hydrogen extensions belong to this private deployment, outside the official release set.
+  if (dir.startsWith('packages/') && manifest.name?.startsWith('@hydrogen/dsh-')) {
+    if (manifest.private !== true) errors.push(`${label}: Hydrogen package must set "private": true`)
+    if (manifest.publishConfig !== undefined) errors.push(`${label}: Hydrogen package must not set publishConfig`)
+  } else if (isPublicNativePackage) {
     if (manifest.private === true) {
       errors.push(`${label}: published Landlock package must not set "private": true`)
     }

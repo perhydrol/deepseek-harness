@@ -1,0 +1,41 @@
+{
+  "name": "@hydrogen/dsh-single-user-auth",
+  "private": true,
+  "version": "0.2.1-alpha.2",
+  "description": "Private optional single-user browser authentication profile layer",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "cordis.patch.yml",
+    "lib/types/**/*.d.ts"
+  ],
+  "license": "MIT",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@hydrogen/dsh-browser-auth-single-user": "workspace:*",
+    "@hydrogen/dsh-browser-auth-store-sqlite": "workspace:*",
+    "@hydrogen/dsh-client-ui-browser-auth": "workspace:*"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/cordis-plugin-include": "workspace:~"
+  }
+}

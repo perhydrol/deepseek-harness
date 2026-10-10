@@ -89,6 +89,7 @@ async function loadComposition(
   gzip = false,
   host = '127.0.0.1',
   tls?: Partial<TlsConfig> | null,
+  requireRequestGate = false,
 ): Promise<Context> {
   const root = await mkdtemp(join(tmpdir(), 'dsh-webserver-loader-'))
   const configPath = join(root, 'cordis.yml')
@@ -97,6 +98,7 @@ async function loadComposition(
     '  config:',
     `    host: '${host}'`,
     `    port: ${String(port)}`,
+    `    requireRequestGate: ${String(requireRequestGate)}`,
     ...(tls === undefined
       ? []
       : tls === null
@@ -155,7 +157,7 @@ async function request(
 }
 
 /** Open one raw upgrade request and return after the handler writes its response. */
-async function upgrade(port: number, path: string): Promise<ReturnType<typeof connect>> {
+async function upgrade(port: number, path: string, expected = '101 Switching Protocols'): Promise<ReturnType<typeof connect>> {
   const socket = connect(port, '127.0.0.1')
   await once(socket, 'connect')
   const response = once(socket, 'data')
@@ -168,7 +170,7 @@ async function upgrade(port: number, path: string): Promise<ReturnType<typeof co
     '',
   ].join('\r\n'))
   const [data] = await response as [Buffer]
-  expect(String(data)).toContain('101 Switching Protocols')
+  expect(String(data)).toContain(expected)
   return socket
 }
 
@@ -733,4 +735,48 @@ describe('real Loader composition', () => {
     expect(fiber?.state).toBe(FiberState.FAILED)
     await expect(fiber?.await()).rejects.toThrow('EADDRINUSE')
   })
+})
+
+it('denies named, fallback and upgrade routes until the required gate admits them', async () => {
+  const loaded = await loadComposition(0, false, '127.0.0.1', undefined, true)
+  const server = loaded.webServer
+  const upgraded = vi.fn((_req, socket: Duplex) => { socket.end('HTTP/1.1 200 OK\r\n\r\n') })
+  server.register({ kind: 'exact', path: '/private', handler: (_req, res) => { res.end('private') } })
+  server.registerFallback((_req, res) => { res.end('asset') })
+  server.registerUpgrade({ path: '/socket', handler: upgraded })
+  expect((await request(server.port, '/private')).status).toBe(503)
+  expect((await request(server.port, '/asset.js')).status).toBe(503)
+  const dispose = server.registerRequestGate(req => req.headers['x-admit'] === 'yes'
+    ? { kind: 'allow' } : { kind: 'reject', status: 401 })
+  expect((await request(server.port, '/private')).status).toBe(401)
+  expect((await request(server.port, '/asset.js')).status).toBe(401)
+  const deniedSocket = await upgrade(server.port, '/socket', '401 Unauthorized')
+  deniedSocket.destroy()
+  expect(upgraded).not.toHaveBeenCalled()
+  expect((await request(server.port, '/private', { headers: { 'x-admit': 'yes' } })).body).toBe('private')
+  dispose()
+  expect((await request(server.port, '/private')).status).toBe(503)
+  const disposeReplacement = server.registerRequestGate(() => ({ kind: 'allow' }))
+  dispose()
+  expect((await request(server.port, '/private')).body).toBe('private')
+  disposeReplacement()
+  expect((await request(server.port, '/asset.js')).status).toBe(503)
+})
+
+it('releases a rejected upgrade even if its peer keeps the writing half open', { timeout: 5000 }, async () => {
+  const loaded = await loadComposition(0, false, '127.0.0.1', undefined, true)
+  const closed = Promise.withResolvers<undefined>()
+  loaded.webServer.registerRequestGate((req) => {
+    req.socket.once('close', () => { closed.resolve(undefined) })
+    return { kind: 'reject', status: 401 }
+  })
+  const socket = connect({ host: '127.0.0.1', port: loaded.webServer.port, allowHalfOpen: true })
+  try {
+    await once(socket, 'connect')
+    const response = once(socket, 'data')
+    socket.write('GET /socket HTTP/1.1\r\nHost: localhost\r\nConnection: Upgrade\r\nUpgrade: test\r\n\r\n')
+    const [data] = await response as [Buffer]
+    expect(String(data)).toContain('401 Unauthorized')
+    await closed.promise
+  } finally { socket.destroy() }
 })

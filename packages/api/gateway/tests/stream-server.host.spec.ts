@@ -1,3 +1,5 @@
+import { BrowserSessionId } from '@hydrogen/dsh-browser-auth'
+import type { AdmissionLifetime } from '@hydrogen/dsh-browser-auth/types'
 import { once } from 'node:events'
 import { createServer, type Server } from 'node:http'
 import { Context } from '@deepseek-ai/cordis'
@@ -27,6 +29,32 @@ afterEach(async () => {
 })
 
 describe('Remote stream mux server carrier lifecycle', () => {
+  it('revokes one socket and active stream without disposing the shared operator Peer', async () => {
+    const peer = await fixturePeer()
+    const revoked = new AbortController()
+    const stopped = Promise.withResolvers<undefined>()
+    const opened = Promise.withResolvers<undefined>()
+    const entry = await startMux(async (_endpoint, _payload, _uplink, _peer, control) => {
+      opened.resolve(undefined)
+      control.signal.addEventListener('abort', () => { stopped.resolve(undefined) }, { once: true })
+      return waitForAbort(control.signal)
+    }, 2000, 262144, peer, {
+      sessionId: BrowserSessionId('revoked-fixture'), expiresAt: Date.now() + 60000, revoked: revoked.signal,
+    })
+    const client = await connect(entry.url)
+    const closed = once(client, 'close')
+    client.send(JSON.stringify({ type: 'open', streamId: 'one', endpoint: 'fixture', payload: null }))
+    await opened.promise
+    revoked.abort()
+    await stopped.promise
+    expect((await closed)[0]).toBe(1008)
+    const other = await startMux(async (_endpoint, _payload, _uplink, _peer, control) => waitForAbort(control.signal), 2000, 262144, peer)
+    const remaining = await connect(other.url)
+    expect(remaining.readyState).toBe(WebSocket.OPEN)
+    remaining.close()
+    await once(remaining, 'close')
+  })
+
   it('sends WebSocket Ping control frames without application messages', async () => {
     const entry = await startMux(async (_endpoint, _payload, _uplink, _peer, control) => waitForAbort(control.signal), 20)
     const client = await connect(entry.url)
@@ -500,11 +528,12 @@ async function startMux(
   heartbeatIntervalMs = 2_000,
   streamInboxBytes = 262_144,
   peer?: PeerScope,
+  lifetime: AdmissionLifetime = { sessionId: BrowserSessionId('fixture'), expiresAt: Date.now() + 60000, revoked: new AbortController().signal },
 ): Promise<RunningMux> {
   const admitted = peer ?? await fixturePeer()
   const mux = new RemoteStreamMuxServer(open, mapFailure, heartbeatIntervalMs, streamInboxBytes)
   const http = createServer()
-  http.on('upgrade', (request, socket, head) => { mux.handleUpgrade(request, socket, head, admitted) })
+  http.on('upgrade', (request, socket, head) => { mux.handleUpgrade(request, socket, head, admitted, lifetime) })
   await new Promise<void>((resolve, reject) => {
     http.once('error', reject)
     http.listen(0, '127.0.0.1', () => {

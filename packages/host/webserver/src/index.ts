@@ -19,8 +19,11 @@ import z from '@deepseek-ai/schemastery'
 import compressionMiddleware from 'compression'
 import ipaddr from 'ipaddr.js'
 import Negotiator from 'negotiator'
+import { bindWebAdmission } from './request-gate.ts'
+import type { WebRequestGate, WebRequestGateDecision } from './request-gate.ts'
 import { renderIndexInjections, type IndexInjection } from './injections.ts'
 
+export type { WebRequestGate, WebRequestGateDecision, WebRequestAdmission } from './request-gate.ts'
 export { renderIndexInjections } from './injections.ts'
 export type { IndexInjection, IndexInjectionPlacement } from './injections.ts'
 
@@ -95,6 +98,8 @@ export interface Config {
    * over plain HTTP.
    */
   tls?: TlsConfig
+  /** Deny every route and upgrade while no request gate is installed. Required by authenticated deployments. */
+  requireRequestGate?: boolean
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -274,11 +279,13 @@ export class WebServer extends Service {
       certFile: z.string().required(),
       keyFile: z.string().required(),
     }).default(undefined as never),
+    requireRequestGate: z.boolean(),
     compression: z.union([z.const('none'), z.const('gzip')]).default(DEFAULT_COMPRESSION),
     compressionLevel: z.number().step(1).min(0).max(9).default(DEFAULT_COMPRESSION_LEVEL),
     compressionThresholdBytes: z.natural().default(DEFAULT_COMPRESSION_THRESHOLD_BYTES),
   })
 
+  private requestGate: { readonly callback: WebRequestGate } | undefined
   private readonly exact = new Map<string, WebRoute>()
   private readonly prefixes = new Map<string, WebRoute>()
   private readonly upgrades = new Map<string, WebUpgradeRoute>()
@@ -304,6 +311,34 @@ export class WebServer extends Service {
     // Schemastery passes an explicit `tls: null` through; only a real object serves TLS.
     this.tlsConfig = resolved.tls ?? undefined
     this.gzip = resolved.compression === 'gzip' ? createGzipMiddleware(resolved) : undefined
+  }
+
+
+  /** Whether this listener remains closed to requests without an admission gate. */
+  get requiresRequestGate(): boolean { return this.config.requireRequestGate === true }
+
+  /**
+   * Install the sole request gate before route dispatch.
+   * @param gate - synchronous admission for every HTTP request and upgrade.
+   * @returns disposer; required listeners revert to rejecting every request.
+   */
+  registerRequestGate(gate: WebRequestGate): () => void {
+    if (this.requestGate !== undefined) throw new Error('webserver: request gate is already installed')
+    const registration = { callback: gate }
+    this.requestGate = registration
+    return () => { if (this.requestGate === registration) this.requestGate = undefined }
+  }
+
+  private decideRequest(request: IncomingMessage, carrier: 'http' | 'upgrade'): WebRequestGateDecision {
+    if (this.requestGate === undefined) return this.requiresRequestGate ? { kind: 'reject', status: 503 } : { kind: 'allow' }
+    try {
+      const decision = this.requestGate.callback(request, carrier)
+      if (decision.kind === 'allow' && decision.admission !== undefined
+        && (decision.admission.revoked.aborted || Date.now() >= decision.admission.expiresAt)) return { kind: 'reject', status: 401 }
+      return decision
+    } catch (_gateError) {
+      return { kind: 'reject', status: 503 }
+    }
   }
 
   /** The listening port (the OS-assigned value when config.port is 0). */
@@ -391,6 +426,18 @@ export class WebServer extends Service {
       /* v8 ignore next -- `?? '/'` arm: node:http always sets url on server
       requests; the field is only optional on the client-side IncomingMessage type */
       const rawPath = new URL(req.url ?? '/', 'http://x').pathname
+
+      const decision = this.decideRequest(req, 'http')
+      if (decision.kind === 'reject') {
+        res.writeHead(decision.status, { 'cache-control': 'no-store', ...decision.headers })
+        res.end()
+        return
+      }
+      if (decision.admission !== undefined) {
+        const dispose = bindWebAdmission(decision.admission, () => { res.destroy() })
+        res.once('close', dispose)
+        if (res.destroyed) { dispose(); return }
+      }
       const route = this.match(rawPath)
       if (route !== undefined) {
         await route.handler(req, res)
@@ -446,6 +493,7 @@ export class WebServer extends Service {
         })
       }
       this.server.on('upgrade', (req, socket, head) => {
+        this.upgradedSockets.add(socket)
         const onError = (error: Error): void => {
           this.ctx.logger.warn(error)
           socket.destroy()
@@ -455,6 +503,19 @@ export class WebServer extends Service {
           socket.off('error', onError)
           this.upgradedSockets.delete(socket)
         })
+
+        const decision = this.decideRequest(req, 'upgrade')
+        if (decision.kind === 'reject') {
+          const status = decision.status === 303 ? 401 : decision.status
+          const reason = status === 401 ? 'Unauthorized' : status === 403 ? 'Forbidden' : 'Service Unavailable'
+          socket.end('HTTP/1.1 ' + String(status) + ' ' + reason + '\r\nConnection: close\r\nCache-Control: no-store\r\nContent-Length: 0\r\n\r\n', () => { socket.destroy() })
+          return
+        }
+        if (decision.admission !== undefined) {
+          const dispose = bindWebAdmission(decision.admission, () => { socket.destroy() })
+          socket.once('close', dispose)
+          if (socket.destroyed) { dispose(); return }
+        }
         let route: WebUpgradeRoute | undefined
         try {
           /* v8 ignore next -- node:http always sets url on server requests. */
@@ -468,7 +529,6 @@ export class WebServer extends Service {
           socket.destroy()
           return
         }
-        this.upgradedSockets.add(socket)
         try {
           Promise.resolve(route.handler(req, socket, head)).catch((error: unknown) => {
             this.ctx.logger.warn(error instanceof Error ? error : new Error(String(error)))

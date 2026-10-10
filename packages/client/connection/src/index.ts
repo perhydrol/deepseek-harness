@@ -6,10 +6,11 @@ import type {} from '@deepseek-ai/dsh-attachment'
 import type {} from '@deepseek-ai/dsh-credentials'
 // Activates the webServer Context merge used below.
 import type { WebRoute } from '@deepseek-ai/dsh-host-webserver'
+import type {} from '@hydrogen/dsh-browser-auth'
 import { API_PATH } from './api-path.ts'
 import { bridge, DEFAULT_MAX_REQUEST_BODY_BYTES } from './http-bridge.ts'
 import { assertTrustedAuthority } from './api-request-trust.ts'
-import { BrowserAuth } from './browser-auth.ts'
+
 import { HostConnectionService } from './rpc-host.ts'
 import { ConnectionRecoveryConfigSchema, resolveConnectionConfig, type ConnectionRecoveryConfig } from './recovery-config.ts'
 
@@ -86,7 +87,7 @@ function assertImageBodyCapacity(ctx: Context, maxRequestBodyBytes: number): voi
 }
 
 /** Services required before providing Connection. */
-export const inject = ['credentials']
+export const inject = ['browserAuth']
 
 /** Browser authentication, request limits, and connection recovery configuration. */
 export interface ConnectionConfig {
@@ -108,7 +109,7 @@ export interface ConnectionConfig {
 export const Config: z<ConnectionConfig> = z.object({
   recovery: ConnectionRecoveryConfigSchema.default({}),
   trustedHosts: z.array(String).default([]),
-  cookieMaxAgeDays: z.natural().min(1).default(30),
+  cookieMaxAgeDays: z.natural().min(1),
   maxRequestBodyBytes: z.natural().min(1).default(DEFAULT_MAX_REQUEST_BODY_BYTES),
 })
 
@@ -119,11 +120,11 @@ export const Config: z<ConnectionConfig> = z.object({
  * @param ctx - Host plugin context.
  * @param config - resolved plugin config (schema defaults applied).
  */
-export async function apply(ctx: Context, config?: ConnectionConfig): Promise<void> {
+export function apply(ctx: Context, config?: ConnectionConfig): void {
   const recovery = resolveConnectionConfig(config?.recovery)
   // The Loader resolves schema defaults; hand-built test contexts may pass none.
   const trustedHosts = config?.trustedHosts ?? []
-  const cookieMaxAgeDays = config?.cookieMaxAgeDays ?? 30
+  if (config?.cookieMaxAgeDays !== undefined) throw new Error('client-connection: move cookieMaxAgeDays to the browser-auth-launch-token provider config')
   const maxRequestBodyBytes = config?.maxRequestBodyBytes ?? DEFAULT_MAX_REQUEST_BODY_BYTES
   // Config boundary: a malformed entry fails the load loudly here rather than
   // silently authorizing its hostname prefix at request time.
@@ -132,7 +133,7 @@ export async function apply(ctx: Context, config?: ConnectionConfig): Promise<vo
   const connection = new HostConnectionService(
     ctx,
     trustedHosts,
-    await BrowserAuth.create(ctx.root, ctx.credentials, cookieMaxAgeDays),
+    ctx.browserAuth,
   )
   ctx.inject(['webServer'], (webCtx) => {
     assertImageBodyCapacity(webCtx, maxRequestBodyBytes)

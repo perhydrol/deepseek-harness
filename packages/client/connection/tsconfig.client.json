@@ -40,6 +40,9 @@
     },
     {
       "path": "../../util/brand"
+    },
+    {
+      "path": "../../credentials/browser-auth"
     }
   ]
 }

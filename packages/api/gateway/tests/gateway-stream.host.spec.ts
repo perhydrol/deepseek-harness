@@ -1557,7 +1557,7 @@ async function setup(
   if (ready !== undefined) ctx.provide('appReady', ready)
   if (transport) {
     await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
   }
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(TypertGatewayService, gatewayConfig)

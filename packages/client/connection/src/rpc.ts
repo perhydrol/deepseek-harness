@@ -1,5 +1,6 @@
 /** Generic unary RPC contracts shared by the Host and Client Connection halves. */
 
+import type { AdmissionLifetime } from '@hydrogen/dsh-browser-auth/types'
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type { PeerScope } from '@deepseek-ai/dsh-typert-protocol'
 
@@ -96,6 +97,10 @@ export type RpcMessage = ClientRequest | ServerResponse
 
 /** HTTP request facts consumed by browser trust and authentication. */
 export interface ConnectionTrustRequest {
+  readonly method?: string | undefined
+  readonly url?: string | undefined
+  readonly remoteAddress?: string | undefined
+  readonly socket?: { readonly remoteAddress?: string | undefined } | undefined
   /** Request headers supplied by either the Fetch or node:http representation. */
   readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>
 }
@@ -117,7 +122,7 @@ export interface ConnectionIndexResponse {
 
 /** Outcome of admitting one request: the operator Peer it speaks for, or the status refusing it. */
 export type PeerAdmission =
-  | { readonly peer: PeerScope }
+  | { readonly peer: PeerScope; readonly lifetime: AdmissionLifetime }
   | { readonly rejection: 401 | 403 }
 
 /**

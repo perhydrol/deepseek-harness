@@ -50,6 +50,8 @@ export { REGION_BEGIN, REGION_END }
  * errors, so the partition can never silently drift from the service API.
  */
 export const SERVICE_PAGE: Record<string, string> = {
+  browserAuth: 'credentials.md',
+  browserAuthStore: 'credentials.md',
   translator: 'translation.md',
   cotTranslation: 'translation.md',
   speechToText: 'voice-input.md',
@@ -770,6 +772,11 @@ export const LINK_MAP: Readonly<Record<string, string>> = {
   PresetOption: 'permission-presets.md',
   PresetSpec: 'permission-presets.md',
   WebRoute: 'web-server.md',
+  WebRequestGate: 'web-server.md',
+  BrowserAdmission: 'credentials.md',
+  BrowserRequest: 'credentials.md',
+  IndexResponse: 'credentials.md',
+  BrowserPublicState: 'credentials.md',
   IndexInjection: 'web-server.md',
   StorageBackend: 'storage.md',
   StorageForms: 'storage.md',

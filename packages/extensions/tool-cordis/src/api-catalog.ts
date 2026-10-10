@@ -549,6 +549,43 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'browserAuth',
+    summary: 'Provider implements synchronous admission over initialized authentication state.',
+    description: 'Provider implements synchronous admission over initialized authentication state.',
+    methods: [
+      {
+        signature: 'abstract authenticate(request: BrowserRequest): BrowserAdmission',
+        description: 'Authenticate transport-owned browser request facts.',
+        parameters: [{ name: 'request', description: 'request facts from the HTTP or upgrade adapter.' }],
+        returns: 'a rejection or a session with its revocation signal and absolute deadline.',
+      },
+      {
+        signature: 'abstract authorizeIndex(request: BrowserRequest, response: IndexResponse): boolean',
+        description: 'Authorize rendering of an application index document.',
+        parameters: [{ name: 'request', description: 'incoming index request facts.' }, { name: 'response', description: 'response owned by the provider when rendering is denied.' }],
+        returns: 'whether the caller may render the index.',
+      },
+      {
+        signature: 'abstract authenticatedUrl(baseUrl: string): string',
+        description: 'Resolve the browser entry URL for the active provider.',
+        parameters: [{ name: 'baseUrl', description: 'clean advertised application URL.' }],
+        returns: 'a launch URL or canonical login-enabled application URL.',
+      },
+      {
+        signature: 'abstract getPublicState(): BrowserPublicState',
+        description: 'Report available browser login methods.',
+        parameters: [],
+        returns: 'public authentication mode and capability flags without secrets.',
+      },
+    ],
+  },
+  {
+    key: 'browserAuthStore',
+    summary: 'Store provider retains ownership until dependent authentication work drains.',
+    description: 'Store provider retains ownership until dependent authentication work drains.',
+    methods: [],
+  },
+  {
     key: 'browserUse',
     summary: 'Owns one optional provider registration in the shared browser-use service.',
     description: 'Owns one optional provider registration in the shared browser-use service.',
@@ -3572,6 +3609,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     description: 'The browser HTTP carrier service. Activation loads any configured TLS material, then listens immediately; a material or listen failure rejects initialization, and the boot process reports the failed fiber. Route registration order does not affect requests because configured named routes must be distinct, and the fallback handler answers anything not yet claimed during startup with 404 until its owner registers.',
     methods: [
       {
+        signature: 'registerRequestGate(gate: WebRequestGate): () => void',
+        description: 'Install the sole request gate before route dispatch.',
+        parameters: [{ name: 'gate', description: 'synchronous admission for every HTTP request and upgrade.' }],
+        returns: 'disposer; required listeners revert to rejecting every request.',
+      },
+      {
         signature: 'register(route: WebRoute): () => void',
         description: 'Register a named route. Duplicate (kind, path) throws — route patterns are a composition-level contract, so a collision is a misconfiguration.',
         parameters: [{ name: 'route', description: 'kind, path, and the owning handler.' }],
@@ -4578,6 +4621,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export interface AdapterRegistrationHandle {\n    (): void;\n    replace(providers: string[]): void;\n}',
   },
   {
+    name: 'AdmissionLifetime',
+    declaration: 'export interface AdmissionLifetime {\n    readonly sessionId: BrowserSessionId;\n    readonly expiresAt: number;\n    readonly revoked: AbortSignal;\n}',
+  },
+  {
     name: 'AdmittedPromptContentPart',
     declaration: 'export type AdmittedPromptContentPart = {\n    readonly type: \'text\';\n    readonly text: string;\n} | {\n    readonly type: \'image\';\n    readonly attachment: ImageAttachmentRef;\n} | {\n    readonly type: \'file\';\n    readonly attachment: FileAttachmentRef;\n};',
   },
@@ -4850,6 +4897,22 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type BrandedNumber<B extends string> = number & {\n    readonly [BRAND]: B;\n};',
   },
   {
+    name: 'BrowserAdmission',
+    declaration: 'export type BrowserAdmission = {\n    readonly kind: \'authenticated\';\n    readonly lifetime: AdmissionLifetime;\n} | {\n    readonly kind: \'rejected\';\n    readonly status: 401 | 403;\n};',
+  },
+  {
+    name: 'BrowserPublicState',
+    declaration: 'export interface BrowserPublicState {\n    readonly mode: \'launch-token\' | \'single-user\';\n    readonly password: boolean;\n    readonly passkey: boolean;\n}',
+  },
+  {
+    name: 'BrowserRequest',
+    declaration: 'export interface BrowserRequest extends BrowserTrustRequest {\n    readonly method: string;\n    readonly url: string;\n    readonly remoteAddress: string | undefined;\n}',
+  },
+  {
+    name: 'BrowserTrustRequest',
+    declaration: 'export interface BrowserTrustRequest {\n    readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>;\n}',
+  },
+  {
     name: 'BrowserUseProviderName',
     declaration: 'export type BrowserUseProviderName = Branded<\'BrowserUseProviderName\'>;',
   },
@@ -5023,7 +5086,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionTrustRequest',
-    declaration: 'export interface ConnectionTrustRequest {\n    readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>;\n}',
+    declaration: 'export interface ConnectionTrustRequest {\n    readonly method?: string | undefined;\n    readonly url?: string | undefined;\n    readonly remoteAddress?: string | undefined;\n    readonly socket?: {\n        readonly remoteAddress?: string | undefined;\n    } | undefined;\n    readonly headers: Headers | Readonly<Record<string, string | readonly string[] | undefined>>;\n}',
   },
   {
     name: 'ContentBlockMap',
@@ -5560,6 +5623,10 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'IndexInjectionPlacement',
     declaration: 'export type IndexInjectionPlacement = \'head\' | \'body\';',
+  },
+  {
+    name: 'IndexResponse',
+    declaration: 'export interface IndexResponse {\n    writeHead(status: number, headers?: Readonly<Record<string, string>>): unknown;\n    end(body?: string): unknown;\n}',
   },
   {
     name: 'InspectOptions',
@@ -6147,7 +6214,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'PeerAdmission',
-    declaration: 'export type PeerAdmission = {\n    readonly peer: PeerScope;\n} | {\n    readonly rejection: 401 | 403;\n};',
+    declaration: 'export type PeerAdmission = {\n    readonly peer: PeerScope;\n    readonly lifetime: AdmissionLifetime;\n} | {\n    readonly rejection: 401 | 403;\n};',
   },
   {
     name: 'PeerId',
@@ -8300,6 +8367,18 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'WebhookSourceId',
     declaration: 'export type WebhookSourceId = Branded<\'WebhookSourceId\'>;',
+  },
+  {
+    name: 'WebRequestAdmission',
+    declaration: 'export interface WebRequestAdmission {\n    readonly expiresAt: number;\n    readonly revoked: AbortSignal;\n}',
+  },
+  {
+    name: 'WebRequestGate',
+    declaration: 'export type WebRequestGate = (request: IncomingMessage, carrier: \'http\' | \'upgrade\') => WebRequestGateDecision;',
+  },
+  {
+    name: 'WebRequestGateDecision',
+    declaration: 'export type WebRequestGateDecision = {\n    readonly kind: \'allow\';\n    readonly admission?: WebRequestAdmission;\n} | {\n    readonly kind: \'reject\';\n    readonly status: 401 | 403 | 503 | 303;\n    readonly headers?: Readonly<Record<string, string>>;\n};',
   },
   {
     name: 'WebResultView',

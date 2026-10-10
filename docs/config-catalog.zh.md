@@ -436,8 +436,8 @@ export type Config = LocalConfig
 
 ## `@deepseek-ai/dsh-client-connection`
 
-- `inject`: `credentials`
-- `source`: [`packages/client/connection/src/index.ts:92`](../packages/client/connection/src/index.ts)
+- `inject`: `browserAuth`
+- `source`: [`packages/client/connection/src/index.ts:93`](../packages/client/connection/src/index.ts)
 
 ```ts config-catalog
 /** Browser authentication, request limits, and connection recovery configuration. */
@@ -1628,7 +1628,7 @@ export interface Config {
 
 ## `@deepseek-ai/dsh-host-webserver`
 
-- `source`: [`packages/host/webserver/src/index.ts:76`](../packages/host/webserver/src/index.ts)
+- `source`: [`packages/host/webserver/src/index.ts:79`](../packages/host/webserver/src/index.ts)
 
 ```ts config-catalog
 /** Web server listen, TLS, and response-compression config. */
@@ -1654,6 +1654,8 @@ export interface Config {
    * over plain HTTP.
    */
   tls?: TlsConfig
+  /** Deny every route and upgrade while no request gate is installed. Required by authenticated deployments. */
+  requireRequestGate?: boolean
   /** Response compression for socket-backed HTTP requests. @default 'none' */
   compression?: 'none' | 'gzip'
   /** Gzip DEFLATE level from 0 through 9. @default 1 */
@@ -4492,6 +4494,126 @@ export interface Config {
 ```
 <!-- END GENERATED config-catalog:@deepseek-ai/dsh-workspace-changes -->
 
+<!-- BEGIN GENERATED config-catalog:@hydrogen/dsh-browser-auth-launch-token -->
+<a id="hydrogendsh-browser-auth-launch-token"></a>
+
+## `@hydrogen/dsh-browser-auth-launch-token`
+
+- `inject`: `credentials`
+- `source`: [`packages/credentials/browser-auth-launch-token/src/index.ts:15`](../packages/credentials/browser-auth-launch-token/src/index.ts)
+
+```ts config-catalog
+/** Absolute lifetime for signed browser cookies. */
+export interface LaunchTokenConfig {
+  /** Browser Cookie lifetime in days. */
+  cookieMaxAgeDays?: number
+}
+```
+<!-- END GENERATED config-catalog:@hydrogen/dsh-browser-auth-launch-token -->
+
+<!-- BEGIN GENERATED config-catalog:@hydrogen/dsh-browser-auth-single-user -->
+<a id="hydrogendsh-browser-auth-single-user"></a>
+
+## `@hydrogen/dsh-browser-auth-single-user`
+
+- `inject`: `browserAuthStore` · `webServer`
+- `source`: [`packages/credentials/browser-auth-single-user/src/config.ts:52`](../packages/credentials/browser-auth-single-user/src/config.ts)
+
+```ts config-catalog
+/** Single-operator deployment configuration; defaults resolve once at activation. */
+export interface SingleUserConfig {
+  /** Canonical browser-facing HTTPS origin without a trailing path. */
+  publicOrigin: string
+  /** WebAuthn relying-party identifier matching the public origin hostname. */
+  rpId: string
+  /** Canonical external application directory path, including its trailing slash. */
+  mountPath?: string
+  /** Allow explicit loopback HTTP development. */
+  development?: boolean
+  /** Direct listener or explicitly trusted proxy peers and overwritten client-IP header. */
+  upstream?: {
+    /** Admit requests directly from the listener peer. */
+    kind: 'direct'
+  } | {
+    /** Admit requests through explicitly trusted proxies. */
+    kind: 'proxy'
+    /** CIDRs of direct proxy peers permitted to supply the client-IP header. */
+    trustedPeers: string[]
+    /** Dedicated scalar client-IP header overwritten by the trusted proxy. */
+    clientIpHeader: string
+  }
+  /** Password hashing costs, byte limits and work queue budgets. */
+  password?: Partial<PasswordPolicy>
+  /** Absolute browser session lifetime in milliseconds. */
+  sessionLifetimeMs?: number
+  /** Maximum live persistent browser sessions. */
+  sessionLimit?: number
+  /** Maximum operator passkey credentials. */
+  passkeyLimit?: number
+  /** Passkey challenge lifetime in milliseconds. */
+  challengeLifetimeMs?: number
+  /** Maximum live challenges and management grants. */
+  challengeLimit?: number
+  /** Anonymous login proof lifetime in milliseconds. */
+  preauthLifetimeMs?: number
+  /** Maximum live anonymous login proofs. */
+  preauthLimit?: number
+  /** Sensitive-operation reauthentication grant lifetime in milliseconds. */
+  reauthLifetimeMs?: number
+  /** Maximum bytes accepted in an authentication JSON body. */
+  bodyLimitBytes?: number
+  /** Maximum passkey label length in UTF-8 bytes. */
+  labelLimitBytes?: number
+  /** Authentication rate-limit window in milliseconds. */
+  attemptWindowMs?: number
+  /** Maximum login attempts per trusted client in one window. */
+  attemptsPerClient?: number
+  /** Maximum login attempts across clients in one window. */
+  attemptsGlobal?: number
+  /** Maximum clients retained in the rate limiter. */
+  limiterClients?: number
+  /** Maximum management attempts per session in one window. */
+  managementAttempts?: number
+}
+
+/** Resolved instance-owned password hashing configuration. */
+export interface PasswordPolicy {
+  /** Minimum password length in UTF-8 bytes. */
+  readonly minimumBytes: number
+  /** Maximum password length in UTF-8 bytes. */
+  readonly maximumBytes: number
+  /** scrypt CPU and memory cost; a supported power of two. */
+  readonly N: number
+  /** scrypt block size parameter. */
+  readonly r: number
+  /** scrypt parallelization parameter. */
+  readonly p: number
+  /** Maximum bytes available to one scrypt operation. */
+  readonly maxmem: number
+  /** Maximum simultaneous password hashing operations. */
+  readonly activeLimit: number
+  /** Maximum queued password hashing operations. */
+  readonly queueLimit: number
+}
+```
+<!-- END GENERATED config-catalog:@hydrogen/dsh-browser-auth-single-user -->
+
+<!-- BEGIN GENERATED config-catalog:@hydrogen/dsh-browser-auth-store-sqlite -->
+<a id="hydrogendsh-browser-auth-store-sqlite"></a>
+
+## `@hydrogen/dsh-browser-auth-store-sqlite`
+
+- `source`: [`packages/credentials/browser-auth-store-sqlite/src/index.ts:10`](../packages/credentials/browser-auth-store-sqlite/src/index.ts)
+
+```ts config-catalog
+/** Absolute private database location. */
+export interface Config {
+  /** Absolute canonical location of the private authentication SQLite file. */
+  path: string
+}
+```
+<!-- END GENERATED config-catalog:@hydrogen/dsh-browser-auth-store-sqlite -->
+
 ## 无配置的可加载插件
 
 这些插件通过 `cordis.yml` 中不含 `config:` 块的条目加载；它们未声明任何配置接口。
@@ -4601,6 +4723,7 @@ export interface Config {
 | `@deepseek-ai/dsh-user-questions` | — | [`packages/interaction/user-questions/src/index.ts`](../packages/interaction/user-questions/src/index.ts) |
 | `@deepseek-ai/dsh-webhook` | `agents` · `agentDefaultModel` · `agentPresets` · `permissionPresets` · `sessionTitle` · `workspaceRegistry` | [`packages/experimental/webhook/src/index.ts`](../packages/experimental/webhook/src/index.ts) |
 | `@deepseek-ai/dsh-workspace` | `storageDomain` · `sessionPersistence` | [`packages/workspace/workspace/src/index.ts`](../packages/workspace/workspace/src/index.ts) |
+| `@hydrogen/dsh-client-ui-browser-auth` | `webServer` · `browserAuth` | [`packages/client/ui-browser-auth/src/index.ts`](../packages/client/ui-browser-auth/src/index.ts) |
 <!-- END GENERATED config-catalog:no-config -->
 
 ## Seam 包（不可直接加载）
@@ -4626,6 +4749,7 @@ export interface Config {
 | `@deepseek-ai/dsh-spill` | `SpillStore` | — | [`packages/spill/spill/src/index.ts`](../packages/spill/spill/src/index.ts) |
 | `@deepseek-ai/dsh-subprocess` | `SubprocessRuntime` | — | [`packages/subprocess/subprocess/src/index.ts`](../packages/subprocess/subprocess/src/index.ts) |
 | `@deepseek-ai/dsh-workflow` | `WorkflowEngine` | — | [`packages/workflow/workflow/src/index.ts`](../packages/workflow/workflow/src/index.ts) |
+| `@hydrogen/dsh-browser-auth` | `BrowserAuthService` | — | [`packages/credentials/browser-auth/src/index.ts`](../packages/credentials/browser-auth/src/index.ts) |
 <!-- END GENERATED config-catalog:seam -->
 
 ## 库包（无插件入口）
@@ -4699,4 +4823,5 @@ export interface Config {
 | `@deepseek-ai/dsh-util-values` | — | [`packages/util/values/src/index.ts`](../packages/util/values/src/index.ts) |
 | `@deepseek-ai/dsh-util-workspace-path` | — | [`packages/util/workspace-path/src/index.ts`](../packages/util/workspace-path/src/index.ts) |
 | `@deepseek-ai/dsh-win32-process` | — | [`packages/subprocess/win32-process/src/index.ts`](../packages/subprocess/win32-process/src/index.ts) |
+| `@hydrogen/dsh-single-user-auth` | — | [`packages/bundle/single-user-auth/src/index.ts`](../packages/bundle/single-user-auth/src/index.ts) |
 <!-- END GENERATED config-catalog:library -->

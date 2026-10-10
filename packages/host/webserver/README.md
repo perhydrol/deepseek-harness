@@ -60,6 +60,8 @@ Set `compression: 'gzip'` to wrap eligible socket-backed responses without chang
 
 `register(route)` adds a named `exact` or `prefix` HTTP route, `registerUpgrade(route)` adds an upgrade route for an exact pathname, and both return a disposer that removes the registration. A duplicate path within either table throws — route patterns are a composition-level contract, so a collision is a misconfiguration. HTTP matching is exact over the whole table, then longest prefix, then the fallback handler; upgrades match exactly and unmatched connections are closed.
 
+Set `requireRequestGate: true` for authenticated deployments. Until `registerRequestGate(gate)` installs the sole admission callback, HTTP requests and protocol upgrades receive 503, including during startup and after gate disposal. The gate runs before exact routes, prefix routes and the fallback; the authentication provider owns the exact anonymous allowlist. An admitted transport with a deadline and revocation signal closes when either ends its admission.
+
 ### The fallback seat
 
 `registerFallback(handler)` claims the one handler for every request no named route matches. A second registration throws; while no fallback is registered the server answers 404. In the shipped Web composition the [SPA dist server](../frontend-static/README.md) owns the seat and calls `renderIndex` on every index response it renders.
@@ -127,7 +129,7 @@ None; this package neither assembles nor sends a provider request.
 These limits define where the server is intentionally minimal. They are current package constraints, not a task backlog.
 
 - **No certificate lifecycle** — `tls` serves the PEM files present at activation: the carrier never provisions, renews, or watches them, and it applies Node's default TLS policy. Replacing a certificate takes a reload.
-- **No server-wide authentication or origin policy** — route owners such as `dsh-client-connection` enforce their own request policy. Binding a non-loopback address still exposes unprotected routes and static assets to that network.
+- **No built-in authentication policy** — the admission gate delegates identity, origin checks and anonymous exceptions to its provider. Without a gate and `requireRequestGate: true`, binding a non-loopback address exposes routes and static assets to that network.
 - **Socket options are fixed** — config selects the bind host and port, while backlog and other socket settings remain internal until a deployment needs them.
 
 <a id="dev-note"></a>

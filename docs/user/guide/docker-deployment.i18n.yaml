@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for docker-deployment.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/user/guide/docker-deployment.md
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx:
+  en: f3fc97e127a7bfec
+  zh: 6fc58dd32b479f44
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/prepare-the-server:
+  en: fdb0a179c618eba3
+  zh: 8d3ee7ac6138fde0
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/build-and-initialize:
+  en: ca9e944ec44cc174
+  zh: 6fd60514fd0f9f76
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/add-the-nginx-site:
+  en: 1546e26ba0bd6e15
+  zh: 7d86ced7ec7d9c35
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/persist-data-and-maintain-credentials:
+  en: f3aca380b188bc3f
+  zh: 40032601d9d9bf9c
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/verification-scope:
+  en: e3fc244557080767
+  zh: 752468e6ed1e4fb2

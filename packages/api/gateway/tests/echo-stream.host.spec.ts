@@ -70,7 +70,7 @@ async function setup(transport: boolean): Promise<Context> {
   roots.push(ctx)
   if (transport) {
     await ctx.plugin(WebServer, { host: '127.0.0.1', port: 0 })
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
   }
   await ctx.plugin(TypertRegistry)
   await ctx.plugin(TypertGatewayService, {})

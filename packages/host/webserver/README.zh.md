@@ -60,6 +60,8 @@ kind: "package-reference"
 
 `register(route)` 添加具名的 `exact`／`prefix` HTTP route，`registerUpgrade(route)` 为精确 pathname 添加 upgrade route，两者返回的 disposer 都会移除注册。同一张表内的重复路径会抛错——route 模式是组合层约定，冲突即配置错误。HTTP 匹配先在整张表中匹配精确 route，再匹配最长前缀，最后交给回退 handler；upgrade 只做精确匹配，未命中连接直接关闭。
 
+认证部署应设置 `requireRequestGate: true`。在 `registerRequestGate(gate)` 安装唯一的准入回调之前，HTTP 请求与协议升级均返回 503，启动期间和 gate 卸载后也如此。gate 在精确路由、前缀路由与回退 handler 之前执行；认证 provider 负责精确的匿名白名单。已准入的传输具有到期时间与撤销信号，任一条件结束准入时都会关闭传输。
+
 ### 回退席位
 
 `registerFallback(handler)` 认领所有未被具名 route 命中的请求的唯一一个 handler。第二次注册会抛错；没有注册回退时服务器回答 404。在随附的 Web 组合中，[SPA dist 服务器](../frontend-static/README.zh.md)拥有该席位，并对其渲染的每个 index 响应调用 `renderIndex`。
@@ -127,7 +129,7 @@ index 启动输入分两层。`collectIndexInjections()` 收集一张全新的�
 这些限制说明服务器在何处有意保持最小。它们是当前包约束，不是任务积压。
 
 - **不管理证书生命周期**：`tls` 只提供激活时存在的 PEM 文件——载体从不申请、续期或监视它们，并采用 Node 默认的 TLS 策略。替换证书需要重新加载。
-- **不提供服务器级认证或来源策略**：`dsh-client-connection` 等 route owner 会实施自己的请求策略。绑定非回环地址仍会向该网络公开未受保护的 route 与静态资源。
+- **没有内置认证策略**——准入 gate 将身份、来源检查与匿名例外交给其 provider。没有 gate 且未启用 `requireRequestGate: true` 时，绑定非回环地址会将路由与静态资源暴露给该网络。
 - **Socket 选项固定不变**：配置只选择绑定宿主与端口；在具体部署产生需求前，backlog 和其他 socket 设置仍保持内部实现。
 
 <a id="dev-note"></a>

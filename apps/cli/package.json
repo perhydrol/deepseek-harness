@@ -104,7 +104,12 @@
     "@deepseek-ai/dsh-experimental-session-titles-bundle": "workspace:*",
     "@deepseek-ai/dsh-experimental-terminal-bundle": "workspace:*",
     "@deepseek-ai/dsh-experimental-session-search": "workspace:*",
-    "@deepseek-ai/dsh-experimental-tool-worktree": "workspace:*"
+    "@deepseek-ai/dsh-experimental-tool-worktree": "workspace:*",
+    "@inquirer/prompts": "8.7.3",
+    "@hydrogen/dsh-browser-auth": "workspace:*",
+    "@hydrogen/dsh-browser-auth-single-user": "workspace:*",
+    "@hydrogen/dsh-browser-auth-store-sqlite": "workspace:*",
+    "@hydrogen/dsh-single-user-auth": "workspace:*"
   },
   "devDependencies": {
     "@deepseek-ai/dsh-skill-badge": "workspace:*",

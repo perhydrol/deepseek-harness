@@ -10,6 +10,7 @@ import type {
   BootManifest, ClientModuleCreateOptions, ClientModuleSystem, DshWindow,
 } from '@deepseek-ai/dsh-client-modules/client'
 import { bootClient } from './boot-client.ts'
+import { checkBrowserAuthBeforeBoot } from './browser-auth-gate.ts'
 import { BootPage } from './boot-page.ts'
 import { mountClient } from './mount.ts'
 import { getStaticModules } from './seed.ts'
@@ -55,6 +56,11 @@ export class AppWebEntry {
       // row, or rejects it into the failure rendering below. An absent global
       // means no bootstrap owns the document and there is nothing to wait for.
       await (globalThis as { __DSH_BOOT_READY__?: { promise: Promise<void> } }).__DSH_BOOT_READY__?.promise
+      const authentication = (globalThis as { __DSH_BROWSER_AUTH__?: unknown }).__DSH_BROWSER_AUTH__
+      if (!await checkBrowserAuthBeforeBoot(authentication, fetch, (path) => { location.replace(path) }, async () => {
+        await this.dispose()
+        this.container.replaceChildren()
+      })) return
       const win = globalThis as DshWindow
       const moduleLoader = win.__ModuleLoader__
       if (moduleLoader === undefined) {

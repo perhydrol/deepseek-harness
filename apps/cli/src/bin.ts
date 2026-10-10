@@ -47,6 +47,11 @@ export async function runCli(options: RunCliOptions = {}): Promise<void> {
       }
       break
     }
+    case 'auth': {
+      const { runAuthMaintenance } = await import('./auth.ts')
+      await runAuthMaintenance(invocation)
+      break
+    }
     case 'plugin': {
       const { runPlugin } = await import('./plugin.ts')
       process.exit(await runPlugin(invocation.profile, invocation.args, options.packageManager))

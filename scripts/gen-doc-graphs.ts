@@ -108,6 +108,18 @@ const GROUP_ORDER = [
 
 const SERVICE_ROLES: ServiceRole[] = [
   {
+    key: 'browserAuth', pkg: 'browser-auth', title: 'Browser authentication provider', mode: 'seam',
+    implementations: ['browser-auth-launch-token', 'browser-auth-single-user'],
+    consumers: ['client-connection', 'client-ui-browser-auth'],
+    note: 'Providers admit browser sessions; consumers retain transport authority checks and enforce deadlines and revocation.',
+  },
+  {
+    key: 'browserAuthStore', pkg: 'browser-auth-store-sqlite', title: 'Private authentication persistence', mode: 'service',
+    consumers: ['browser-auth-single-user'],
+    note: 'Owns Linux flock and synchronous SQLite commits independently of Session logs.',
+  },
+
+  {
     key: 'cotTranslation',
     pkg: 'experimental-client-ui-cot-translation',
     title: 'Reasoning translation Remote',

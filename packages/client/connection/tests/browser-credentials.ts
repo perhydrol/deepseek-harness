@@ -1,3 +1,4 @@
+import * as LaunchTokenProvider from '@hydrogen/dsh-browser-auth-launch-token'
 import type { Context } from '@deepseek-ai/cordis'
 import type { CredentialProvider, CredentialRecord } from '@deepseek-ai/dsh-credentials'
 
@@ -31,6 +32,7 @@ export class RecordCredentials {
 }
 
 /** Provide the record operations Connection needs during authentication setup. */
-export function provideBrowserCredentials(ctx: Context): void {
+export async function provideBrowserCredentials(ctx: Context): Promise<void> {
   ctx.provide('credentials', new RecordCredentials() as unknown as CredentialProvider)
+  await ctx.plugin(LaunchTokenProvider).await()
 }

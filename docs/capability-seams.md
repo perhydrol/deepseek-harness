@@ -7,6 +7,14 @@ A service can be a core spine service, a swappable capability seam, a bundle/com
 
 ```mermaid
 flowchart LR
+  pkg_browser_auth["browser-auth"]
+  svc_browserAuth["ctx.browserAuth<br/>Browser authentication provider"]
+  pkg_browser_auth_launch_token["browser-auth-launch-token"]
+  pkg_browser_auth_single_user["browser-auth-single-user"]
+  pkg_client_connection["client-connection"]
+  pkg_client_ui_browser_auth["client-ui-browser-auth"]
+  pkg_browser_auth_store_sqlite["browser-auth-store-sqlite"]
+  svc_browserAuthStore["ctx.browserAuthStore<br/>Private authentication persistence"]
   pkg_experimental_client_ui_cot_translation["experimental-client-ui-cot-translation"]
   svc_cotTranslation["ctx.cotTranslation<br/>Reasoning translation Remote"]
   pkg_experimental_translator["experimental-translator"]
@@ -20,7 +28,6 @@ flowchart LR
   svc_pluginManager["ctx.pluginManager<br/>Current-profile plugin and bundle management"]
   pkg_ui_settings_plugin_inventory["ui-settings-plugin-inventory"]
   svc_profileContext["ctx.profileContext<br/>Launcher-owned profile data"]
-  pkg_client_connection["client-connection"]
   svc_connection["ctx.connection<br/>Authenticated browser transport"]
   pkg_api_gateway["api-gateway"]
   pkg_host_frontend_static["host-frontend-static"]
@@ -306,6 +313,10 @@ flowchart LR
   pkg_authorization --> svc_authorization
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
+  pkg_browser_auth --> svc_browserAuth
+  pkg_browser_auth_launch_token --> svc_browserAuth
+  pkg_browser_auth_single_user --> svc_browserAuth
+  pkg_browser_auth_store_sqlite --> svc_browserAuthStore
   pkg_browser_use --> svc_browserUse
   pkg_client_connection --> svc_connection
   pkg_client_file_upload --> svc_fileUploads
@@ -454,6 +465,9 @@ flowchart LR
   svc_attachments --> pkg_llm_pi_ai
   svc_attachments --> pkg_tool_fs
   svc_authorization --> pkg_llm_pi_ai
+  svc_browserAuth --> pkg_client_connection
+  svc_browserAuth --> pkg_client_ui_browser_auth
+  svc_browserAuthStore --> pkg_browser_auth_single_user
   svc_browserUse --> pkg_experimental_browser_use_chrome_devtools_mcp
   svc_browserUse --> pkg_experimental_browser_use_playwright_mcp
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
@@ -592,6 +606,8 @@ flowchart LR
 
 | ctx key | Role | Owner | Implementations | Direct consumers | Companion plugins | Note |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.browserAuth` | `seam` | `browser-auth` | `browser-auth-launch-token`, `browser-auth-single-user` | [`client-connection`](../packages/client/connection), `client-ui-browser-auth` | - | Providers admit browser sessions; consumers retain transport authority checks and enforce deadlines and revocation. |
+| `ctx.browserAuthStore` | `service` | `browser-auth-store-sqlite` | - | `browser-auth-single-user` | - | Owns Linux flock and synchronous SQLite commits independently of Session logs. |
 | `ctx.cotTranslation` | `service` | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | - | - | Serves reasoning translations, reuses saved results, and joins ordinary Session activation for uncached inactive Sessions. |
 | `ctx.translator` | `service` | [`experimental-translator`](../packages/experimental/translator) | - | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | Resolves Google or Bing requests and retains shared experimental records through the active Session writer. |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | Owns module and exact configuration watchers; application mutations share its queue and automatic reloads await the application file lock. |

@@ -1,5 +1,7 @@
 /** Host WebSocket owner for multiplexed Typert Remote streams. */
 
+import { isAdmissionLive } from '@hydrogen/dsh-browser-auth'
+import type { AdmissionLifetime } from '@hydrogen/dsh-browser-auth/types'
 import type { IncomingMessage } from 'node:http'
 import type { Duplex } from 'node:stream'
 import { Deque } from '@deepseek-ai/dsh-deque'
@@ -67,17 +69,21 @@ export class RemoteStreamMuxServer {
    * @param socket - carrier socket transferred to the WebSocket server.
    * @param head - bytes already read after the HTTP upgrade headers.
    * @param peer - Peer the upgrade was admitted as.
+   * @param lifetime - per-session expiry and revocation independent of the operator.
    */
-  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope): void {
+  handleUpgrade(req: IncomingMessage, socket: Duplex, head: Buffer, peer: PeerScope, lifetime: AdmissionLifetime): void {
+    if (!isAdmissionLive(lifetime, Date.now())) { rejectRemoteStreamUpgrade(socket, 401); return }
     this.server.handleUpgrade(req, socket, head, (websocket) => {
       const release = bindPeer(websocket, peer)
       if (release === undefined) return
       this.missedHeartbeats.set(websocket, 0)
       websocket.on('pong', () => { this.missedHeartbeats.set(websocket, 0) })
       this.startHeartbeat()
-      const bound: BoundStreamOpener = (endpoint, payload, uplink, control) =>
-        this.open(endpoint, payload, uplink, peer, control)
-      const connection = new RemoteStreamMuxConnection(websocket, bound, this.failure, this.streamInboxBytes)
+      const bound: BoundStreamOpener = (endpoint, payload, uplink, control) => {
+        if (!isAdmissionLive(lifetime, Date.now())) return Promise.reject(new Error('Browser session ended'))
+        return this.open(endpoint, payload, uplink, peer, control)
+      }
+      const connection = new RemoteStreamMuxConnection(websocket, bound, this.failure, this.streamInboxBytes, lifetime)
       const done = connection.run()
       this.connections.add(done)
       void done.then(() => {
@@ -141,6 +147,7 @@ class RemoteStreamMuxConnection {
     private readonly open: BoundStreamOpener,
     private readonly failure: RemoteStreamFailureMapper,
     private readonly streamInboxBytes: number,
+    private readonly lifetime: AdmissionLifetime,
   ) {}
 
   async run(): Promise<void> {
@@ -148,6 +155,7 @@ class RemoteStreamMuxConnection {
       this.socket.once('close', resolve)
       this.socket.once('error', () => { this.socket.terminate() })
       this.socket.on('message', (data, isBinary) => {
+        if (!isAdmissionLive(this.lifetime, Date.now())) { this.endAdmission(); return }
         if (isBinary) {
           this.socket.close(1003, 'text messages required')
           return
@@ -159,10 +167,30 @@ class RemoteStreamMuxConnection {
         }
       })
     })
-    await closed
+
+    let timer: NodeJS.Timeout | undefined
+    const expire = () => {
+      if (!isAdmissionLive(this.lifetime, Date.now())) this.endAdmission()
+      else {
+        timer = setTimeout(expire, Math.min(this.lifetime.expiresAt - Date.now(), 2147483647))
+        timer.unref()
+      }
+    }
+    const revoke = () => { this.endAdmission() }
+    this.lifetime.revoked.addEventListener('abort', revoke, { once: true })
+    expire()
+    try { await closed } finally {
+      clearTimeout(timer)
+      this.lifetime.revoked.removeEventListener('abort', revoke)
+    }
     const active = [...this.streams.values()]
     for (const stream of active) stream.stop(new Error('Remote stream socket closed'))
     await Promise.all(active.map(stream => stream.done))
+  }
+
+  private endAdmission(): void {
+    for (const stream of this.streams.values()) stream.stop(new Error('Browser session ended'))
+    this.socket.close(1008, 'browser session ended')
   }
 
   /**

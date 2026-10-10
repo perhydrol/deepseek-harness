@@ -28,6 +28,13 @@
     // not declaration path aliases, keep each package/vendor source compiled
     // under its own tsconfig boundary.
     "paths": {
+      "@hydrogen/dsh-single-user-auth": ["./packages/bundle/single-user-auth/src/index.ts"],
+      "@hydrogen/dsh-browser-auth-store-sqlite": ["./packages/credentials/browser-auth-store-sqlite/src/index.ts"],
+      "@hydrogen/dsh-browser-auth-single-user": ["./packages/credentials/browser-auth-single-user/src/index.ts"],
+      "@hydrogen/dsh-browser-auth": ["./packages/credentials/browser-auth/src/index.ts"],
+      "@hydrogen/dsh-browser-auth/types": ["./packages/credentials/browser-auth/src/types.ts"],
+      "@hydrogen/dsh-browser-auth-launch-token/src/*": ["./packages/credentials/browser-auth-launch-token/src/*"],
+      "@hydrogen/dsh-browser-auth-launch-token": ["./packages/credentials/browser-auth-launch-token/src/index.ts"],
       "@deepseek-ai/dsh-experimental-session-search": ["./packages/experimental/session-search/src/index.ts"],
       "@deepseek-ai/dsh-experimental-ralph-bundle": ["./packages/experimental/ralph-bundle/src/index.ts"],
       "@deepseek-ai/dsh-experimental-terminal-bundle": ["./packages/experimental/terminal-bundle/src/index.ts"],
@@ -298,7 +305,9 @@
       "@deepseek-ai/dsh-client-ui-user-questions": ["./packages/client/ui-user-questions/src"],
       "@deepseek-ai/dsh-client-ui-trajectory": ["./packages/client/ui-trajectory/src"],
       "@deepseek-ai/dsh-client-ui-workspace": ["./packages/client/ui-workspace/src"],
-      "@deepseek-ai/dsh-client-ui-theme": ["./packages/client/ui-theme/src"],
+      "@hydrogen/dsh-client-ui-browser-auth": ["./packages/client/ui-browser-auth/src/index.ts"],
+    "@hydrogen/dsh-client-ui-browser-auth/client": ["./packages/client/ui-browser-auth/src/client/index.ts"],
+    "@deepseek-ai/dsh-client-ui-theme": ["./packages/client/ui-theme/src"],
       "@deepseek-ai/dsh-client-ui-theme/brand-font.css": ["./packages/client/ui-theme/src/styles/brand-font.css"],
       "@deepseek-ai/dsh-client-ui-settings": ["./packages/client/ui-settings/src"],
       "@deepseek-ai/dsh-client-ui-settings-general": ["./packages/client/ui-settings-general/src"],

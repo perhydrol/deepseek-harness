@@ -1,0 +1,37 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write packages/bundle/single-user-auth/README.md
+/:
+  en: f6e5cb4e832d9ccc
+  zh: 47df1725c5c196d4
+/hydrogen-dsh-single-user-auth:
+  en: 77b0e182a07d488b
+  zh: 965c8999bc83a0b4
+/hydrogen-dsh-single-user-auth/summary:
+  en: 3e7cd1971bd676c6
+  zh: 3f19ee40cf0b6f1e
+/hydrogen-dsh-single-user-auth/table-of-contents:
+  en: e6747830a09a09aa
+  zh: a8a9866bfbd800ba
+/hydrogen-dsh-single-user-auth/use-this-package:
+  en: 4973463e95dd5590
+  zh: 039bd80f71834454
+/hydrogen-dsh-single-user-auth/understand-the-implementation:
+  en: 688609ba6102dcae
+  zh: 5db2372cea9c1489
+/hydrogen-dsh-single-user-auth/further-exploration:
+  en: 1a468d3f1c1733c4
+  zh: a459b99d5e923fef
+/hydrogen-dsh-single-user-auth/dev-note:
+  en: 5e5e53ccf2990643
+  zh: 049aab8014d99eb7
+/hydrogen-dsh-single-user-auth/model-experience:
+  en: 01c01b32da1ad792
+  zh: ad47466f73238f04
+/hydrogen-dsh-single-user-auth/model-experience/kv-cache-effect:
+  en: 1e79be4e1ba86f2d
+  zh: 1147b84888339d12
+/hydrogen-dsh-single-user-auth/known-limitations-and-deferred-work:
+  en: 8e8b4ce04969c742
+  zh: a19ecb98b97d2574

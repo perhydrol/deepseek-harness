@@ -7,6 +7,7 @@ import type {
 } from '@deepseek-ai/dsh-client-modules/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppWebEntry } from '../src/boot.ts'
+import * as authGate from '../src/browser-auth-gate.ts'
 
 const MODULES_ID = '@deepseek-ai/dsh-client-modules'
 const PROVIDER_CLIENT_ID = 'provider/client'
@@ -294,4 +295,18 @@ it('draws the shared boot page before Host injections and resumes without replac
     await entry.dispose()
     vi.unstubAllGlobals()
   }
+})
+
+it('does not create or prefetch the business module graph when authentication admission is denied', async () => {
+  const create = vi.fn(() => { throw new Error('Business graph must not be created') })
+  installFacade(create)
+  const gate = vi.spyOn(authGate, 'checkBrowserAuthBeforeBoot').mockResolvedValue(false)
+  const container = document.createElement('div')
+  document.body.append(container)
+  const entry = new AppWebEntry(container)
+  try {
+    await entry.run()
+    expect(gate).toHaveBeenCalledOnce()
+    expect(create).not.toHaveBeenCalled()
+  } finally { await entry.dispose() }
 })

@@ -226,6 +226,9 @@
     # webserver under /api; browser half is the fetch/SSE client. Every API
     # request and upgrade passes the loopback, listener-bind, or trustedHosts
     # policy; an advertised public URL contributes nothing to it.
+    - id: browser-auth
+      name: '@hydrogen/dsh-browser-auth-launch-token'
+
     - id: connection
       name: '@deepseek-ai/dsh-client-connection'
       inject: [webStartup]

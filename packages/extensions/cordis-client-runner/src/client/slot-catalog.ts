@@ -2488,6 +2488,7 @@ export const CLIENT_SLOT_API: readonly ClientSlotEntry[] = [
     declaredBy: 'an entry in \'settings.section\' (client-ui-settings-general), so it exists while that entry is mounted',
     occupants: [
       'client-locale LanguageRow id \'language\'',
+      '@hydrogen/dsh-client-ui-browser-auth SecurityEntry id \'browser-security\'',
       'client-ui-chat LinkOpeningRow id \'link-opening\'',
       'client-ui-chat PerformanceUsageRow id \'performance-usage\'',
       'client-ui-chat TranscriptViewRow id \'transcript-view\'',

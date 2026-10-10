@@ -1,0 +1,70 @@
+{
+  "name": "@hydrogen/dsh-client-ui-browser-auth",
+  "description": "Independent browser login and single-user security management pages with a settings entry",
+  "version": "0.2.1-alpha.2",
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deepseek-ai/deepseek-harness.git",
+    "directory": "packages/client/ui-browser-auth"
+  },
+  "license": "MIT",
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/login.js",
+    "lib/styles",
+    "lib/types/**/*.d.ts"
+  ],
+  "dsh": {
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-connection"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "workspace:~"
+  },
+  "dependencies": {
+    "@hydrogen/dsh-browser-auth": "workspace:*",
+    "@deepseek-ai/dsh-host-webserver": "workspace:*",
+    "@simplewebauthn/browser": "14.0.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "workspace:~",
+    "@deepseek-ai/dsh-client-locale": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-slots": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-settings": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-theme": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-primitives": "workspace:*",
+    "@types/react": "~18.3.1",
+    "react": "^18.2.0",
+    "@deepseek-ai/dsh-client-connection": "workspace:*",
+    "@deepseek-ai/dsh-client-ui-renderer": "workspace:*"
+  },
+  "scripts": {
+    "bundle": "tsdown",
+    "watch": "tsdown --watch"
+  },
+  "private": true
+}

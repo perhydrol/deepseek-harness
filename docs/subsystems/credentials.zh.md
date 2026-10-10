@@ -130,6 +130,52 @@ async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome>
 
 Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
 
+<a id="ctxbrowserauth--browserauthservice-abstract-seam"></a>
+
+### `ctx.browserAuth` — `BrowserAuthService` (abstract seam)
+
+Provider implements synchronous admission over initialized authentication state.
+
+```ts cordis-catalog
+/**
+ * Authenticate transport-owned browser request facts.
+ * @param request - request facts from the HTTP or upgrade adapter.
+ * @returns a rejection or a session with its revocation signal and absolute deadline.
+ */
+abstract authenticate(request: BrowserRequest): BrowserAdmission
+
+/**
+ * Authorize rendering of an application index document.
+ * @param request - incoming index request facts.
+ * @param response - response owned by the provider when rendering is denied.
+ * @returns whether the caller may render the index.
+ */
+abstract authorizeIndex(request: BrowserRequest, response: IndexResponse): boolean
+
+/**
+ * Resolve the browser entry URL for the active provider.
+ * @param baseUrl - clean advertised application URL.
+ * @returns a launch URL or canonical login-enabled application URL.
+ */
+abstract authenticatedUrl(baseUrl: string): string
+
+/**
+ * Report available browser login methods.
+ * @returns public authentication mode and capability flags without secrets.
+ */
+abstract getPublicState(): BrowserPublicState
+```
+
+Source: [`packages/credentials/browser-auth/src/index.ts`](../../packages/credentials/browser-auth/src/index.ts)
+
+<a id="ctxbrowserauthstore--browserauthstoreservice"></a>
+
+### `ctx.browserAuthStore` — `BrowserAuthStoreService`
+
+Store provider retains ownership until dependent authentication work drains.
+
+Source: [`packages/credentials/browser-auth-store-sqlite/src/index.ts`](../../packages/credentials/browser-auth-store-sqlite/src/index.ts)
+
 <a id="ctxcredentials--credentialprovider-abstract-seam"></a>
 
 ### `ctx.credentials` — `CredentialProvider` (abstract seam)

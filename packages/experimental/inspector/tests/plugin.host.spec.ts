@@ -1,3 +1,4 @@
+import { BrowserSessionId } from '@hydrogen/dsh-browser-auth'
 import { createServer, type IncomingMessage } from 'node:http'
 import { PassThrough } from 'node:stream'
 import type { AddressInfo } from 'node:net'
@@ -38,7 +39,9 @@ describe('experimental Inspector Host plugin', () => {
     const registerUpgrade = vi.fn<(_route: WebUpgradeRoute) => () => void>(() => releaseUpgrade)
     const routes: Pick<WebServer, 'register' | 'registerUpgrade'> = { register: registerRoute, registerUpgrade }
     let authenticated = false
-    const auth: Pick<BrowserAuth, 'isAuthenticated'> = { isAuthenticated: () => authenticated }
+    const auth: Pick<BrowserAuth, 'authenticate'> = { authenticate: () => authenticated
+      ? { kind: 'authenticated', lifetime: { sessionId: BrowserSessionId('inspector-fixture'), expiresAt: Date.now() + 60000, revoked: new AbortController().signal } }
+      : { kind: 'rejected', status: 401 } }
     context.provide('webServer', routes as WebServer)
     const connection = new HostConnectionService(context, [], auth as BrowserAuth)
     const fiber = context.plugin(

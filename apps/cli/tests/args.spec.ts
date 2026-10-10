@@ -255,3 +255,13 @@ describe('parseDshArgs', () => {
     expect(exitCode(['--version'])).toBe(0)
   })
 })
+
+it('parses auth maintenance separately and rejects secret arguments', () => {
+  expect(parse(['auth', 'init', '--profile', 'server'])).toEqual({
+    mode: 'auth', command: 'init', profile: 'server', patches: [], clearPasskeys: false, restoredBackup: false,
+  })
+  expect(parse(['auth', 'reset-password', '--profile', 'server', '--clear-passkeys', '--restored-backup']))
+    .toMatchObject({ mode: 'auth', command: 'reset-password', clearPasskeys: true, restoredBackup: true })
+  expect(exitCode(['auth', 'init', '--profile', 'server', '--password', 'secret'])).toBe(1)
+  expect(exitCode(['auth', 'unknown', '--profile', 'server'])).toBe(1)
+})

@@ -1314,7 +1314,7 @@ describe('TypertGatewayService', () => {
   it('dispatches claimed invocations through /api and leaves unclaimed endpoints to its fallback', async () => {
     const ctx = new Context().extend({ fixtureScope: 'http-caller' })
     const routes: WebRoute[] = []
-    provideBrowserCredentials(ctx)
+    await provideBrowserCredentials(ctx)
     ctx.provide('webServer', fakeHttpServer(routes) as WebServer)
     const connectionFiber = ctx.plugin({ inject: [...connectionInject], apply: applyConnection })
     await connectionFiber

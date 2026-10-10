@@ -256,7 +256,7 @@ export class TypertGatewayService extends Service implements TypertGateway {
                 rejectRemoteStreamUpgrade(socket, admission.rejection)
                 return
               }
-              mux.handleUpgrade(req, socket, head, admission.peer)
+              mux.handleUpgrade(req, socket, head, admission.peer, admission.lifetime)
             },
           }
           yield webCtx.webServer.registerUpgrade(route)

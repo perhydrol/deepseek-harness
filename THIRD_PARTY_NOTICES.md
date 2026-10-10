@@ -41,6 +41,7 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@eslint-community/regexpp`](https://github.com/eslint-community/regexpp) | MIT |
 | [`@fortune-sheet/core`](https://github.com/ruilisi/fortune-sheet) | MIT |
 | [`@fortune-sheet/react`](https://github.com/ruilisi/fortune-sheet) | MIT |
+| [`@inquirer/prompts`](https://github.com/SBoudrias/Inquirer.js) | MIT |
 | [`@joplin/turndown-plugin-gfm`](https://github.com/laurent22/joplin-turndown-plugin-gfm) | MIT |
 | [`@jridgewell/gen-mapping`](https://github.com/jridgewell/sourcemaps) | MIT |
 | [`@js-temporal/polyfill`](https://github.com/js-temporal/temporal-polyfill) | ISC |
@@ -63,6 +64,8 @@ External packages installed for runtime use or distributed inside the prebuilt b
 | [`@playwright/mcp`](https://github.com/microsoft/playwright-mcp) | Apache-2.0 |
 | [`@puppeteer/browsers`](https://github.com/puppeteer/puppeteer/tree/main/packages/browsers) | Apache-2.0 |
 | [`@shikijs/langs`](https://github.com/shikijs/shiki) | MIT |
+| [`@simplewebauthn/browser`](https://github.com/MasterKale/SimpleWebAuthn) | MIT |
+| [`@simplewebauthn/server`](https://github.com/MasterKale/SimpleWebAuthn) | MIT |
 | [`@standard-schema/spec`](https://github.com/standard-schema/standard-schema) | MIT |
 | [`@tanstack/react-virtual`](https://github.com/TanStack/virtual) | MIT |
 | [`@trycua/cua-driver`](https://github.com/trycua/cua) | MIT |

@@ -1,0 +1,22 @@
+name: hydrogen-harness
+
+services:
+  harness:
+    image: hydrogen-harness:local
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        DSH_CLIENT_COMMIT_HASH: ${DSH_CLIENT_COMMIT_HASH:-}
+    network_mode: host
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - home:/var/lib/dsh
+      - workspace:/workspace
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+
+volumes:
+  home:
+  workspace:
