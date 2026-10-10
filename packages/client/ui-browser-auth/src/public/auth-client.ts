@@ -167,7 +167,8 @@ export class AuthClient {
   private async request<T>(operation: string, body: object | undefined, schema: z.ZodType<T>): Promise<T> {
     let response: Response
     try {
-      response = await this.fetcher(this.mountPath + 'auth/' + operation, {
+      const fetcher = this.fetcher
+      response = await fetcher(this.mountPath + 'auth/' + operation, {
         method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store',
         headers: { accept: 'application/json', ...(body === undefined ? {} : {
           'content-type': 'application/json', 'x-dsh-csrf': this.state?.csrf ?? '',

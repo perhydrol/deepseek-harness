@@ -22,3 +22,12 @@ it('rejects malformed public state rather than treating it as an authenticated r
   await expect(client.refresh()).rejects.toMatchObject({ code: 'auth/unavailable' })
   expect(client.state).toBeUndefined()
 })
+
+it('calls the browser transport without attaching the authentication client as its receiver', async () => {
+  const browserFetch: typeof fetch = function (this: unknown) {
+    if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation')
+    return Promise.resolve(Response.json({ authenticated: false, csrf: 'browser-proof', password: true, passkey: false }))
+  }
+  const client = new AuthClient('/', browserFetch)
+  await expect(client.refresh()).resolves.toMatchObject({ authenticated: false, csrf: 'browser-proof' })
+})
