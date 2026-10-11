@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.2/passkey-validation/guide.md
+/:
+  en: 3405a7842e6ad8cc
+  zh: a670767fd019ab7b
+/passkey-response-validation:
+  en: dc54ea3f597c99a4
+  zh: 16b6a120ed833145
+/passkey-response-validation/change:
+  en: 8e5ebab4ed725c11
+  zh: 8d4542de959b310d
+/passkey-response-validation/migration:
+  en: 0701a7e9431c36e5
+  zh: eeb64c003072a945

@@ -4,6 +4,7 @@ import {
   verifyAuthenticationResponse, verifyRegistrationResponse,
 } from '@simplewebauthn/server'
 import type { AuthenticationResponseJSON, RegistrationResponseJSON } from '@simplewebauthn/server'
+import { decodeClientDataJSON } from '@simplewebauthn/server/helpers'
 import { z } from 'zod'
 import { AuthError } from '@hydrogen/dsh-browser-auth'
 import type { AuthState, PasskeyRecord } from '@hydrogen/dsh-browser-auth'
@@ -20,8 +21,9 @@ const assertion: z.ZodType<AuthenticationResponseJSON> = z.object({
 const attestation: z.ZodType<RegistrationResponseJSON> = z.object({
   ...common,
   response: z.object({ clientDataJSON: encoded, attestationObject: encoded, transports: z.array(z.string()).max(16).default([]) }),
-  clientExtensionResults: z.object({ credProps: z.object({ rk: z.literal(true) }) }),
+  clientExtensionResults: z.object({}),
 })
+const clientContext = z.object({ crossOrigin: z.literal(false).optional(), topOrigin: z.never().optional() })
 const transports = ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'] as const
 
 /**
@@ -75,6 +77,7 @@ export async function verifyAssertion(value: unknown, challenge: string, state: 
   const credential = state.passkeys.find(key => key.id === parsed.data.id)
   if (credential === undefined) throw invalidCredential()
   try {
+    clientContext.parse(decodeClientDataJSON(parsed.data.response.clientDataJSON))
     const result = await verifyAuthenticationResponse({
       response: parsed.data, expectedChallenge: challenge,
       expectedOrigin: state.deployment.publicOrigin, expectedRPID: state.deployment.rpId,
@@ -90,7 +93,8 @@ export async function verifyAssertion(value: unknown, challenge: string, state: 
 }
 
 /**
- * Verify registration before persisting any credential.
+ * Verify a same-origin registration with a credential ID of at most 1023 bytes.
+ * Optional client extension output does not establish credential discoverability.
  * *
  * @param value - untrusted browser JSON.
  * *
@@ -114,6 +118,7 @@ export async function verifyRegistration(
   const parsed = attestation.safeParse(value)
   if (!parsed.success || parsed.data.id !== parsed.data.rawId) throw invalidCredential()
   try {
+    clientContext.parse(decodeClientDataJSON(parsed.data.response.clientDataJSON))
     const result = await verifyRegistrationResponse({
       response: parsed.data, expectedChallenge: challenge,
       expectedOrigin: state.deployment.publicOrigin, expectedRPID: state.deployment.rpId,
@@ -121,6 +126,7 @@ export async function verifyRegistration(
     })
     if (!result.verified || !result.registrationInfo.userVerified) throw invalidCredential()
     const info = result.registrationInfo
+    if (Buffer.from(info.credential.id, 'base64url').length > 1023) throw invalidCredential()
     return {
       id: info.credential.id as PasskeyRecord['id'],
       publicKey: Buffer.from(info.credential.publicKey).toString('base64url'), counter: info.credential.counter,
