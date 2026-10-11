@@ -14,6 +14,12 @@ services:
     volumes:
       - home:/var/lib/dsh
       - workspace:/workspace
+      - type: bind
+        source: ./auth.yml
+        target: /etc/hydrogen-harness/auth.yml
+        read_only: true
+        bind:
+          create_host_path: false
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
 

@@ -4,7 +4,7 @@
 
 此部署通过单用户认证提供 `https://harness.example.com/`。[Dockerfile](../../../Dockerfile) 基于 Node 24 和 Debian trixie 构建工作区，包含私有 Hydrogen 包及 Linux 原生组件。它使用官方软件源。
 
-将 Dockerfile、server profile 和 Nginx 模板中的 `harness.example.com` 替换为自己的域名，并将命令中的 `nginx-proxy` 替换为 Nginx 容器名。个人部署配置应保存在版本控制之外。
+将 Dockerfile、[auth.yml](../../../deploy/docker/auth.yml) 和 Nginx 模板中的 `harness.example.com` 替换为自己的域名，并将命令中的 `nginx-proxy` 替换为 Nginx 容器名。个人部署配置应保存在版本控制之外。
 
 ## 准备服务器
 
@@ -23,13 +23,13 @@ docker inspect nginx-proxy --format '{{.HostConfig.NetworkMode}}'
 ```fish
 set -gx DSH_CLIENT_COMMIT_HASH (git rev-parse HEAD)
 docker compose -f deploy/docker/compose.yaml build
-docker compose -f deploy/docker/compose.yaml run --rm --no-deps harness auth init --profile server
+docker compose -f deploy/docker/compose.yaml run --rm --no-deps harness auth init --profile server --patch /etc/hydrogen-harness/auth.yml
 docker compose -f deploy/docker/compose.yaml up -d
 ```
 
 构建参数提供真实版本信息，不将 `.git` 复制进镜像。初始化交互提示输入密码；密码不会成为镜像层或命令行参数。先初始化，再启动服务器。模型凭据可通过调用环境中的 `DEEPSEEK_API_KEY` 提供。
 
-[compose.yaml](../../../deploy/docker/compose.yaml) 使用 [server profile](../../../deploy/docker/profile/cordis.patch.yml) 初始化命名 home 卷。该 profile 启用私有认证 bundle，仅信任回环代理，并要求代理提供单值客户端 IP 请求头。缺少凭据会阻止认证启动。
+[compose.yaml](../../../deploy/docker/compose.yaml) 使用 [server profile](../../../deploy/docker/profile/package.json) 初始化命名 home 卷。其可写的 `cordis.patch.yml` 保存用户偏好。独立的 `auth.yml` 只读挂载到 `/etc/hydrogen-harness/auth.yml`，通过 `--patch` 在用户设置之后加载。它定义规范 Origin、Passkey RP ID、可信代理及认证数据库路径，不包含密码或 API Key。服务启动和凭据维护都必须加载此覆盖文件。缺少凭据会阻止认证启动。
 
 ## 添加 Nginx 站点
 
@@ -46,13 +46,13 @@ docker exec nginx-proxy nginx -s reload
 
 ## 持久化数据和维护凭据
 
-位于 `/var/lib/dsh` 的 home 卷保存 profile、认证数据库、凭据和 Session。独立的 `/workspace` 卷保存项目文件。镜像以 UID/GID `1000:1000` 运行；自定义绑定挂载必须允许该身份写入，认证目录必须保持私有。使用认证存储支持的本地文件系统。镜像变化时，已有卷会保留其 profile。
+位于 `/var/lib/dsh` 的 home 卷保存 profile、认证数据库、凭据和 Session。独立的 `/workspace` 卷保存项目文件。镜像以 UID/GID `1000:1000` 运行；数据挂载必须允许该身份写入，认证目录必须保持私有。`auth.yml` 必须允许容器读取，仅允许部署管理员写入；编辑后重启服务。不要将 profile 的 `cordis.patch.yml` 作为单个文件绑定挂载，即使读写挂载也不行：设置持久化通过原子重命名替换此文件。使用认证存储支持的本地文件系统。镜像变化时，已有卷会保留其 profile；已有部署请遵循[迁移指南](../../upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.zh.md)。
 
 密码维护前停止服务：
 
 ```sh
 docker compose -f deploy/docker/compose.yaml stop
-docker compose -f deploy/docker/compose.yaml run --rm --no-deps harness auth reset-password --profile server
+docker compose -f deploy/docker/compose.yaml run --rm --no-deps harness auth reset-password --profile server --patch /etc/hydrogen-harness/auth.yml
 docker compose -f deploy/docker/compose.yaml up -d
 ```
 

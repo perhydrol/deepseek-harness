@@ -43,6 +43,7 @@ RUN apt-get update \
 # Retain workspace links and private Hydrogen packages without registry publication.
 COPY --from=build /opt/harness /opt/harness
 COPY --chown=node:node deploy/docker/profile/ /var/lib/dsh/profiles/server/
+COPY deploy/docker/auth.yml /etc/hydrogen-harness/auth.yml
 ENV NODE_ENV=production \
     DSH_HOME=/var/lib/dsh
 WORKDIR /workspace
@@ -50,4 +51,4 @@ USER 1000:1000
 VOLUME ["/var/lib/dsh", "/workspace"]
 EXPOSE 3080
 ENTRYPOINT ["tini", "--", "node", "/opt/harness/apps/cli/lib/bin.js"]
-CMD ["--profile", "server", "--host", "127.0.0.1", "--port", "3080", "--no-open", "--public-url", "https://harness.example.com/", "--trusted-host", "harness.example.com"]
+CMD ["--profile", "server", "--patch", "/etc/hydrogen-harness/auth.yml", "--host", "127.0.0.1", "--port", "3080", "--no-open", "--public-url", "https://harness.example.com/", "--trusted-host", "harness.example.com"]
