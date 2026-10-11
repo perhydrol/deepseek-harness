@@ -1,0 +1,15 @@
+# Read-only deployment overlay, loaded with --patch for service and auth maintenance.
+# Canonical browser identity stays HTTPS; the trusted local upstream uses HTTP.
+- id: browser-auth-single-user
+  config:
+    publicOrigin: https://harness.example.com
+    rpId: harness.example.com
+    mountPath: /
+    upstream:
+      kind: proxy
+      trustedPeers: [127.0.0.1/32]
+      clientIpHeader: x-hydrogen-client-ip
+
+- id: browser-auth-store
+  config:
+    path: /var/lib/dsh/auth/browser.sqlite

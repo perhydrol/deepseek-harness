@@ -1,6 +1,6 @@
 /** The container's private profile resolves through the public boot-free dsh command. */
 import { execFile } from 'node:child_process'
-import { cp, mkdtemp, rm } from 'node:fs/promises'
+import { cp, mkdtemp, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,10 +13,16 @@ it('composes the Docker profile with one provider, loopback proxy trust and a re
   const home = await mkdtemp(join(tmpdir(), 'dsh-docker-profile-'))
   try {
     await cp(new URL('../../../../deploy/docker/profile/', import.meta.url), join(home, 'profiles', 'server'), { recursive: true })
+    const authPatch = fileURLToPath(new URL('../../../../deploy/docker/auth.yml', import.meta.url))
+    const authBefore = await readFile(authPatch, 'utf8')
+    const userPatch = join(home, 'profiles', 'server', 'cordis.patch.yml')
+    expect(loadCordisYaml(await readFile(userPatch, 'utf8'))).toEqual([])
+    await writeFile(`${userPatch}.tmp`, '- id: ui-settings-general\n  config:\n    welcomeNoticeVersion: "2026-09-28.1"\n')
+    await rename(`${userPatch}.tmp`, userPatch)
     const { stdout, stderr } = await promisify(execFile)(process.execPath, [
       '--import', import.meta.resolve('tsx/esm'),
       fileURLToPath(new URL('../../src/bin.ts', import.meta.url)),
-      '--profile', 'server', '--dump-config',
+      '--profile', 'server', '--patch', authPatch, '--dump-config',
     ], {
       cwd: fileURLToPath(new URL('../../../../', import.meta.url)),
       env: { ...process.env, DSH_HOME: home }, timeout: 30_000, maxBuffer: 2 * 1024 * 1024,
@@ -33,5 +39,18 @@ it('composes the Docker profile with one provider, loopback proxy trust and a re
     })
     expect(rows.find(row => row.id === 'webserver')?.config).toMatchObject({ requireRequestGate: true })
     expect(rows.find(row => row.id === 'ui-settings')?.config).toMatchObject({ allowRemotePersistence: true })
+    expect(rows.find(row => row.id === 'ui-settings-general')?.config).toMatchObject({ welcomeNoticeVersion: '2026-09-28.1' })
+    expect(await readFile(authPatch, 'utf8')).toBe(authBefore)
   } finally { await rm(home, { recursive: true, force: true }) }
 }, 35_000)
+
+it('loads the read-only auth mount from the image command while keeping user preferences in the home volume', async () => {
+  const dockerfile = await readFile(new URL('../../../../Dockerfile', import.meta.url), 'utf8')
+  const command = JSON.parse(dockerfile.split('\n').find(line => line.startsWith('CMD '))!.slice(4)) as string[]
+  expect(command.slice(0, 4)).toEqual(['--profile', 'server', '--patch', '/etc/hydrogen-harness/auth.yml'])
+  const compose = loadCordisYaml(await readFile(new URL('../../../../deploy/docker/compose.yaml', import.meta.url), 'utf8'))
+  expect(compose).toMatchObject({ services: { harness: { volumes: [
+    'home:/var/lib/dsh', 'workspace:/workspace',
+    { type: 'bind', source: './auth.yml', target: '/etc/hydrogen-harness/auth.yml', read_only: true, bind: { create_host_path: false } },
+  ] } } })
+})

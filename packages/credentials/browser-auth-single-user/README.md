@@ -28,6 +28,8 @@ Use the optional [single-user bundle](../../bundle/single-user-auth/README.md). 
 
 Passwords use bounded scrypt work and an instance-owned queue. Sessions, passkeys and security metadata persist; CSRF preauthentication, challenges, reauthentication grants and rate limits are process-local. Management proofs are one-use and action-bound. Session expiry and revocation cancel admitted carriers. Anonymous access is restricted to the exact login resources and login operations. `POST /auth/security/state` requires a live session and its CSRF proof and returns only redacted credential metadata and the active-session count.
 
+Passkey ceremonies require user verification and same-origin client data. Registration requests a discoverable credential with no attestation; optional `credProps.rk` output is not verification evidence. Newly registered credential IDs must not exceed 1023 decoded bytes. SimpleWebAuthn owns algorithm negotiation and cryptographic verification.
+
 ## Dev Note
 
 This package is private and is not published to the public registry.

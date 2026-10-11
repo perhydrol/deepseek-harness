@@ -1,0 +1,16 @@
+# Bilingual-pair consistency record for guide.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write docs/upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.md
+/:
+  en: 09add5adedeef862
+  zh: fd8eab7809ed2777
+/separate-docker-authentication-configuration:
+  en: 261593b6a703f599
+  zh: 6b4084e65d1707c2
+/separate-docker-authentication-configuration/change:
+  en: 1c2c9d193bbfa3d4
+  zh: 8b66226194421dc9
+/separate-docker-authentication-configuration/migration:
+  en: dec616bc468fa188
+  zh: a32502ac684c72fd
