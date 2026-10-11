@@ -46,6 +46,8 @@ Open `https://harness.example.com/`, sign in with the initialized password, and 
 
 ## Persist data and maintain credentials
 
+The `/home` volume preserves OS user files, including `/home/node`, which is the container's `HOME`. User-installed server profile plugins reside in `/var/lib/dsh/profiles/server/node_modules` and are covered by the existing home volume. Bundled packages remain part of the image under `/opt/harness`. Kubernetes deployments must explicitly mount persistent storage at `/home`, `/var/lib/dsh` and `/workspace`; Dockerfile `VOLUME` declarations do not provision Kubernetes PVCs.
+
 The home volume at `/var/lib/dsh` keeps the profile, authentication database, credentials and Sessions. The separate `/workspace` volume keeps project files. The image runs as UID/GID `1000:1000`; data mounts must be writable by that identity, and authentication directories must remain private. Keep `auth.yml` readable by the container and writable only by the deployment administrator; restart after editing it. Do not bind-mount the profile's `cordis.patch.yml` as a single file, even read-write: settings persistence replaces it by atomic rename. Use a local filesystem supported by the authentication store. An existing volume retains its profile when the image changes; follow the [migration guide](../../upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.md) for existing deployments.
 
 Stop the service before password maintenance:

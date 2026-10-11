@@ -46,6 +46,8 @@ docker exec nginx-proxy nginx -s reload
 
 ## 持久化数据和维护凭据
 
+`/home` 卷保存操作系统用户文件，包括作为容器 `HOME` 的 `/home/node`。用户安装的 server profile 插件位于 `/var/lib/dsh/profiles/server/node_modules`，已由现有 home 卷持久化。随镜像提供的包仍位于 `/opt/harness`。Kubernetes 部署必须显式为 `/home`、`/var/lib/dsh` 和 `/workspace` 挂载持久化存储；Dockerfile 的 `VOLUME` 声明不会创建 Kubernetes PVC。
+
 位于 `/var/lib/dsh` 的 home 卷保存 profile、认证数据库、凭据和 Session。独立的 `/workspace` 卷保存项目文件。镜像以 UID/GID `1000:1000` 运行；数据挂载必须允许该身份写入，认证目录必须保持私有。`auth.yml` 必须允许容器读取，仅允许部署管理员写入；编辑后重启服务。不要将 profile 的 `cordis.patch.yml` 作为单个文件绑定挂载，即使读写挂载也不行：设置持久化通过原子重命名替换此文件。使用认证存储支持的本地文件系统。镜像变化时，已有卷会保留其 profile；已有部署请遵循[迁移指南](../../upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.zh.md)。
 
 密码维护前停止服务：
