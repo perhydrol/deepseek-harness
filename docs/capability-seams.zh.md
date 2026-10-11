@@ -9,6 +9,14 @@
 
 ```mermaid
 flowchart LR
+  pkg_browser_auth["browser-auth"]
+  svc_browserAuth["ctx.browserAuth<br/>Browser authentication provider"]
+  pkg_browser_auth_launch_token["browser-auth-launch-token"]
+  pkg_browser_auth_single_user["browser-auth-single-user"]
+  pkg_client_connection["client-connection"]
+  pkg_client_ui_browser_auth["client-ui-browser-auth"]
+  pkg_browser_auth_store_sqlite["browser-auth-store-sqlite"]
+  svc_browserAuthStore["ctx.browserAuthStore<br/>Private authentication persistence"]
   pkg_experimental_client_ui_cot_translation["experimental-client-ui-cot-translation"]
   svc_cotTranslation["ctx.cotTranslation<br/>Reasoning translation Remote"]
   pkg_experimental_translator["experimental-translator"]
@@ -22,7 +30,6 @@ flowchart LR
   svc_pluginManager["ctx.pluginManager<br/>Current-profile plugin and bundle management"]
   pkg_ui_settings_plugin_inventory["ui-settings-plugin-inventory"]
   svc_profileContext["ctx.profileContext<br/>Launcher-owned profile data"]
-  pkg_client_connection["client-connection"]
   svc_connection["ctx.connection<br/>Authenticated browser transport"]
   pkg_api_gateway["api-gateway"]
   pkg_host_frontend_static["host-frontend-static"]
@@ -308,6 +315,10 @@ flowchart LR
   pkg_authorization --> svc_authorization
   pkg_bash_local --> svc_shell
   pkg_bash_sandbox --> svc_shell
+  pkg_browser_auth --> svc_browserAuth
+  pkg_browser_auth_launch_token --> svc_browserAuth
+  pkg_browser_auth_single_user --> svc_browserAuth
+  pkg_browser_auth_store_sqlite --> svc_browserAuthStore
   pkg_browser_use --> svc_browserUse
   pkg_client_connection --> svc_connection
   pkg_client_file_upload --> svc_fileUploads
@@ -456,6 +467,9 @@ flowchart LR
   svc_attachments --> pkg_llm_pi_ai
   svc_attachments --> pkg_tool_fs
   svc_authorization --> pkg_llm_pi_ai
+  svc_browserAuth --> pkg_client_connection
+  svc_browserAuth --> pkg_client_ui_browser_auth
+  svc_browserAuthStore --> pkg_browser_auth_single_user
   svc_browserUse --> pkg_experimental_browser_use_chrome_devtools_mcp
   svc_browserUse --> pkg_experimental_browser_use_playwright_mcp
   svc_browserUse --> pkg_experimental_browser_use_stagehand_native
@@ -594,6 +608,8 @@ flowchart LR
 
 | ctx 键 | 角色 | 所属包 | 实现 | 直接消费方 | 配套插件 | 说明 |
 | --- | --- | --- | --- | --- | --- | --- |
+| `ctx.browserAuth` | `seam` | `browser-auth` | `browser-auth-launch-token`, `browser-auth-single-user` | [`client-connection`](../packages/client/connection), `client-ui-browser-auth` | - | 提供方准入浏览器会话；消费方保留传输权限检查，并执行到期和撤销规则。 |
+| `ctx.browserAuthStore` | `service` | `browser-auth-store-sqlite` | - | `browser-auth-single-user` | - | 独立于 Session 日志，负责 Linux flock 和同步 SQLite 提交。 |
 | `ctx.cotTranslation` | `service` | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | - | - | 为展开的思考内容提供有界的 Session 翻译请求，不改变模型可见历史。 |
 | `ctx.translator` | `service` | [`experimental-translator`](../packages/experimental/translator) | - | [`experimental-client-ui-cot-translation`](../packages/experimental/client-ui-cot-translation) | - | 解析 Google 或 Bing 请求，并可选保留统一的实验性 Session 记录。 |
 | `ctx.hmr` | `core` | [`hmr`](../packages/boot/hmr) | - | [`app-boot`](../packages/boot/app-boot) | - | 负责模块和精确配置监听；应用修改共用其队列，自动重载等待应用文件锁。 |
