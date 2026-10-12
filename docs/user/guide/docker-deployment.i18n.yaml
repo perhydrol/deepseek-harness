@@ -15,8 +15,11 @@
   en: 1546e26ba0bd6e15
   zh: 7d86ced7ec7d9c35
 /deploy-the-private-docker-image-behind-cloudflare-and-nginx/persist-data-and-maintain-credentials:
-  en: 8d0265318b3a3557
-  zh: e64c72c389ae428b
+  en: 726636c55f332dba
+  zh: 41cbf708b452bd9f
+/deploy-the-private-docker-image-behind-cloudflare-and-nginx/python-environment:
+  en: 771d275c6893b69f
+  zh: 57843f38c7ea5da2
 /deploy-the-private-docker-image-behind-cloudflare-and-nginx/verification-scope:
   en: e3fc244557080767
   zh: 752468e6ed1e4fb2

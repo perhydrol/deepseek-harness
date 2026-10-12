@@ -1,5 +1,7 @@
 # syntax=docker/dockerfile:1
 ARG NODE_IMAGE=node:24-trixie-slim
+ARG UV_IMAGE=ghcr.io/astral-sh/uv:latest
+FROM ${UV_IMAGE} AS uv
 FROM ${NODE_IMAGE} AS base
 
 WORKDIR /opt/harness
@@ -31,13 +33,14 @@ RUN pnpm install --frozen-lockfile \
     && pnpm exec tsx native/system/scripts/build.ts
 
 FROM base AS runtime
+COPY --from=uv /uv /uvx /usr/local/bin/
 # hadolint ignore=DL3008
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
         bash ca-certificates curl git openssh-client python3 ripgrep tini \
     && rm -rf /var/lib/apt/lists/* \
-    && mkdir -p /var/lib/dsh /workspace \
-    && chown node:node /var/lib/dsh /workspace \
+    && mkdir -p /var/lib/dsh /var/lib/uv /workspace \
+    && chown node:node /var/lib/dsh /var/lib/uv /workspace \
     && chmod 700 /var/lib/dsh
 
 # Retain workspace links and private Hydrogen packages without registry publication.
@@ -46,10 +49,18 @@ COPY --chown=node:node deploy/docker/profile/ /var/lib/dsh/profiles/server/
 COPY deploy/docker/auth.yml /etc/hydrogen-harness/auth.yml
 ENV NODE_ENV=production \
     HOME=/home/node \
-    DSH_HOME=/var/lib/dsh
+    DSH_HOME=/var/lib/dsh \
+    UV_CACHE_DIR=/var/lib/uv/cache \
+    UV_PYTHON_INSTALL_DIR=/var/lib/uv/python/managed \
+    UV_PYTHON_BIN_DIR=/var/lib/uv/python/bin \
+    UV_TOOL_DIR=/var/lib/uv/python/tools \
+    UV_TOOL_BIN_DIR=/var/lib/uv/python/bin \
+    VIRTUAL_ENV=/var/lib/uv/python/venv \
+    PATH=/var/lib/uv/python/venv/bin:/var/lib/uv/python/bin:${PATH}
 WORKDIR /workspace
 USER 1000:1000
-VOLUME ["/var/lib/dsh", "/workspace", "/home"]
+RUN uv venv --python /usr/bin/python3 /var/lib/uv/python/venv
+VOLUME ["/var/lib/dsh", "/workspace", "/home", "/var/lib/uv"]
 EXPOSE 3080
 ENTRYPOINT ["tini", "--", "node", "/opt/harness/apps/cli/lib/bin.js"]
 CMD ["--profile", "server", "--patch", "/etc/hydrogen-harness/auth.yml", "--host", "127.0.0.1", "--port", "3080", "--no-open", "--public-url", "https://harness.example.com/", "--trusted-host", "harness.example.com"]

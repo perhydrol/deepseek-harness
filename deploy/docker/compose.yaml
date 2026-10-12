@@ -15,6 +15,7 @@ services:
       - home:/var/lib/dsh
       - workspace:/workspace
       - user-home:/home
+      - uv:/var/lib/uv:rw
       - type: bind
         source: ./auth.yml
         target: /etc/hydrogen-harness/auth.yml
@@ -28,3 +29,4 @@ volumes:
   home:
   workspace:
   user-home:
+  uv:

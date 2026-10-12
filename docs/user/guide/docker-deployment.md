@@ -46,7 +46,7 @@ Open `https://harness.example.com/`, sign in with the initialized password, and 
 
 ## Persist data and maintain credentials
 
-The `/home` volume preserves OS user files, including `/home/node`, which is the container's `HOME`. User-installed server profile plugins reside in `/var/lib/dsh/profiles/server/node_modules` and are covered by the existing home volume. Bundled packages remain part of the image under `/opt/harness`. Kubernetes deployments must explicitly mount persistent storage at `/home`, `/var/lib/dsh` and `/workspace`; Dockerfile `VOLUME` declarations do not provision Kubernetes PVCs.
+The `/home` volume preserves OS user files, including `/home/node`, which is the container's `HOME`. User-installed server profile plugins reside in `/var/lib/dsh/profiles/server/node_modules` and are covered by the existing home volume. Bundled packages remain part of the image under `/opt/harness`. Kubernetes deployments must explicitly mount persistent storage at `/home`, `/var/lib/dsh`, `/var/lib/uv` and `/workspace`; Dockerfile `VOLUME` declarations do not provision Kubernetes PVCs.
 
 The home volume at `/var/lib/dsh` keeps the profile, authentication database, credentials and Sessions. The separate `/workspace` volume keeps project files. The image runs as UID/GID `1000:1000`; data mounts must be writable by that identity, and authentication directories must remain private. Keep `auth.yml` readable by the container and writable only by the deployment administrator; restart after editing it. Do not bind-mount the profile's `cordis.patch.yml` as a single file, even read-write: settings persistence replaces it by atomic rename. Use a local filesystem supported by the authentication store. An existing volume retains its profile when the image changes; follow the [migration guide](../../upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.md) for existing deployments.
 
@@ -59,6 +59,18 @@ docker compose -f deploy/docker/compose.yaml up -d
 ```
 
 Keep the volumes when updating the image. This source-workspace image retains development dependencies to preserve private workspace links; it does not depend on publishing Hydrogen packages.
+
+## Python environment
+
+The image includes uv and uvx. The uv cache lives at `/var/lib/uv/cache`; managed Python installations, tool environments and their executables live at `/var/lib/uv/python/managed`, `/var/lib/uv/python/tools` and `/var/lib/uv/python/bin`. The default virtual environment at `/var/lib/uv/python/venv` is on PATH; packages installed with `uv pip install` persist in the separate read-write uv volume. No additional package indexes are configured.
+
+Compose mounts the uv volume at `/var/lib/uv`. New Docker named volumes initialize the virtual environment from the image independently of an existing home volume. If an existing uv volume lacks the default virtual environment, or when using an empty bind-mounted directory, run this once before using the Python environment:
+
+```sh
+docker compose -f deploy/docker/compose.yaml run --rm --no-deps --entrypoint uv harness venv --python /usr/bin/python3 /var/lib/uv/python/venv
+```
+
+With the service running, install packages with `docker compose -f deploy/docker/compose.yaml exec harness uv pip install <package>` and standalone tools with `uv tool install <tool>`. Project-local `uv run` uses the project's environment; run scripts in the default environment with `python script.py`. `uv run --active <command>` targets the default environment and synchronizes project dependencies into it. Retaining the uv volume retains these packages; rebuild the default virtual environment and reinstall its dependencies when the image's system Python becomes incompatible with the existing environment.
 
 ## Verification scope
 

@@ -46,7 +46,7 @@ docker exec nginx-proxy nginx -s reload
 
 ## 持久化数据和维护凭据
 
-`/home` 卷保存操作系统用户文件，包括作为容器 `HOME` 的 `/home/node`。用户安装的 server profile 插件位于 `/var/lib/dsh/profiles/server/node_modules`，已由现有 home 卷持久化。随镜像提供的包仍位于 `/opt/harness`。Kubernetes 部署必须显式为 `/home`、`/var/lib/dsh` 和 `/workspace` 挂载持久化存储；Dockerfile 的 `VOLUME` 声明不会创建 Kubernetes PVC。
+`/home` 卷保存操作系统用户文件，包括作为容器 `HOME` 的 `/home/node`。用户安装的 server profile 插件位于 `/var/lib/dsh/profiles/server/node_modules`，已由现有 home 卷持久化。随镜像提供的包仍位于 `/opt/harness`。Kubernetes 部署必须显式为 `/home`、`/var/lib/dsh`、`/var/lib/uv` 和 `/workspace` 挂载持久化存储；Dockerfile 的 `VOLUME` 声明不会创建 Kubernetes PVC。
 
 位于 `/var/lib/dsh` 的 home 卷保存 profile、认证数据库、凭据和 Session。独立的 `/workspace` 卷保存项目文件。镜像以 UID/GID `1000:1000` 运行；数据挂载必须允许该身份写入，认证目录必须保持私有。`auth.yml` 必须允许容器读取，仅允许部署管理员写入；编辑后重启服务。不要将 profile 的 `cordis.patch.yml` 作为单个文件绑定挂载，即使读写挂载也不行：设置持久化通过原子重命名替换此文件。使用认证存储支持的本地文件系统。镜像变化时，已有卷会保留其 profile；已有部署请遵循[迁移指南](../../upgrade-guide/v0.2.1-alpha.2/docker-auth-overlay/guide.zh.md)。
 
@@ -59,6 +59,18 @@ docker compose -f deploy/docker/compose.yaml up -d
 ```
 
 更新镜像时保留卷。此源码工作区镜像保留开发依赖，以维持私有工作区链接；它不依赖发布 Hydrogen 包。
+
+## Python 环境
+
+镜像包含 uv 和 uvx。uv 缓存位于 `/var/lib/uv/cache`；托管 Python、工具环境及其命令分别位于 `/var/lib/uv/python/managed`、`/var/lib/uv/python/tools` 和 `/var/lib/uv/python/bin`。默认虚拟环境位于 `/var/lib/uv/python/venv`，已加入 PATH；`uv pip install` 安装的包保存在独立的可读写 uv 卷中。不配置额外的软件源。
+
+Compose 将 uv 卷挂载到 `/var/lib/uv`。新建的 Docker 命名卷会从镜像初始化虚拟环境，不受已有 home 卷影响。已有 uv 卷缺少默认虚拟环境或使用空绑定目录时需在使用 Python 环境前执行一次：
+
+```sh
+docker compose -f deploy/docker/compose.yaml run --rm --no-deps --entrypoint uv harness venv --python /usr/bin/python3 /var/lib/uv/python/venv
+```
+
+服务运行后可通过 `docker compose -f deploy/docker/compose.yaml exec harness uv pip install <package>` 安装包，通过 `uv tool install <tool>` 安装独立工具。项目中的 `uv run` 使用项目自己的环境；运行默认环境中的脚本可直接使用 `python script.py`；`uv run --active <command>` 会将项目依赖同步到默认环境。保留 uv 卷即可保留这些包；镜像中的系统 Python 版本与已有环境不兼容时，应重建默认虚拟环境并重新安装依赖。
 
 ## 验证范围
 
