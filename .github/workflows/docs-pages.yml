@@ -5,9 +5,7 @@
 # other ref, and the github-pages environment repeats that restriction as a
 # deployment tag policy with required reviewers.
 #
-# The build signal does not depend on this workflow. Every pull request builds
-# the production site through `check:ci:static`, and ci-master.yml builds it
-# again on master.
+# The manual CI workflows validate the production site separately.
 name: Deploy documentation
 
 on:
