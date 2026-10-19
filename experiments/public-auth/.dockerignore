@@ -1,0 +1,5 @@
+node_modules
+dist
+state
+launch-url.txt
+tests
