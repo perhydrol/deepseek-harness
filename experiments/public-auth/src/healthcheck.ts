@@ -1,10 +1,11 @@
 /** Probe both supervised services without printing private startup credentials. */
 import { readFile } from 'node:fs/promises'
+import { request } from './http-request.mjs'
 
 try {
   const origin = new URL(process.env.PUBLIC_ORIGIN ?? '')
-  const response = await fetch('http://127.0.0.1:8080/_auth/login', {
-    headers: { host: origin.host }, signal: AbortSignal.timeout(2000),
+  const response = await request('http://127.0.0.1:8080/_auth/login', {
+    headers: { host: origin.host },
   })
   await response.body?.cancel()
   if (response.status !== 200) throw new Error('Proxy unavailable')

@@ -1,19 +1,20 @@
 /** Linux Docker smoke: credentials persist across a complete container restart. */
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import process from 'node:process'
 import { setTimeout } from 'node:timers/promises'
 import { URLSearchParams } from 'node:url'
+import { request } from '../src/http-request.mjs'
 
 const image = process.argv[2]
 assert.ok(image, 'Pass the built image tag')
 const name = `dsh-smoke-${randomUUID()}`
 const volume = `${name}-auth`
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
-const request = (url, options) => globalThis.fetch(url, { ...options, signal: globalThis.AbortSignal.timeout(5000) })
 let port
 let origin
+let password
 const ready = async () => {
   for (let attempt = 0; attempt < 90; attempt++) {
     if (docker('inspect', '--format', '{{.State.Health.Status}}', name) === 'healthy') return
@@ -25,7 +26,7 @@ try {
   docker('volume', 'create', volume)
   const initialized = docker('run', '--rm', '-v', `${volume}:/var/lib/dsh-auth`, '--entrypoint', 'node', image,
     '/opt/auth/dist/main.js', 'init', '--state', '/var/lib/dsh-auth')
-  const password = /Administrator password \(shown once\): (\S+)/u.exec(initialized)?.[1]
+  password = /Administrator password \(shown once\): (\S+)/u.exec(initialized)?.[1]
   assert.ok(password, 'Initialization did not return an administrator password')
   // Docker allocates the host port. A separate exact Host exercises the external proxy configuration.
   origin = 'http://localhost'
@@ -34,10 +35,10 @@ try {
   port = docker('port', name, '8080/tcp').split(':').at(-1)
   const url = `http://127.0.0.1:${port}`
   await ready()
-  const anonymous = await request(url, { headers: { host: 'localhost' }, redirect: 'manual' })
+  const anonymous = await request(url, { headers: { host: 'localhost' } })
   await anonymous.body?.cancel()
   assert.equal(anonymous.status, 401)
-  const login = await request(`${url}/_auth/login`, { method: 'POST', redirect: 'manual',
+  const login = await request(`${url}/_auth/login`, { method: 'POST',
     headers: { host: 'localhost', origin, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ password }) })
   await login.body?.cancel()
@@ -45,11 +46,11 @@ try {
   const cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
   assert.ok(cookie)
   const authenticated = async (allowRenewal = false) => {
-    let response = await request(url, { headers: { host: 'localhost', cookie }, redirect: 'manual' })
+    let response = await request(url, { headers: { host: 'localhost', cookie } })
     await response.body?.cancel()
     if (allowRenewal && response.status === 401) {
       // Only this safe GET is repeated; mutations are never replayed by the proxy.
-      response = await request(url, { headers: { host: 'localhost', cookie }, redirect: 'manual' })
+      response = await request(url, { headers: { host: 'localhost', cookie } })
       await response.body?.cancel()
     }
     assert.equal(response.status, 200)
@@ -84,6 +85,14 @@ try {
   docker('stop', '--time', '45', name)
   assert.equal(docker('inspect', '--format', '{{.State.ExitCode}}', name), '0')
   process.stdout.write('Container login, DSH crash recovery, persistent session, restart, log redaction and shutdown passed.\n')
+} catch (error) {
+  for (const args of [['logs', '--tail', '100', name], ['inspect', '--format', '{{json .State.Health}}', name]]) {
+    const result = spawnSync('docker', args, { encoding: 'utf8', timeout: 10_000 })
+    let diagnostic = `${result.stdout ?? ''}${result.stderr ?? ''}`.replace(/([?&]token=)[^\s&#]*/giu, '$1[redacted]')
+    if (password) diagnostic = diagnostic.replaceAll(password, '[redacted]')
+    process.stderr.write(diagnostic)
+  }
+  throw error
 } finally {
   for (const args of [['rm', '-f', '-v', name], ['volume', 'rm', volume]]) {
     try { docker(...args) } catch (error) {

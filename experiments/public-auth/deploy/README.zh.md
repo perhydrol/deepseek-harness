@@ -50,4 +50,4 @@ docker compose --env-file server.env up -d
 
 ## 验证范围
 
-本地 Windows 没有 Docker 引擎。镜像 workflow 负责构建、Compose 配置检查、工具检查，以及首次登录、DSH 子进程崩溃恢复、容器重启后的持久登录、日志 token 遮蔽和关闭检查；这些检查通过后才发布。容器健康检查同时探测 DSH 和认证代理，`unhealthy` 本身不会让 Docker 自动重启容器。目标服务器的 TLS、挂载权限和模型调用仍需实际验收。
+本地 Windows 没有 Docker 引擎。镜像 workflow 负责构建、Compose 配置检查、工具检查，以及首次登录、DSH 子进程崩溃恢复、容器重启后的持久登录、日志 token 遮蔽和关闭检查；这些检查通过后才发布。探测通过 Node HTTP 接口显式设置外部 Host，不跟随重定向；失败时输出遮蔽凭据后的容器日志和健康状态。容器健康检查同时探测 DSH 和认证代理，`unhealthy` 本身不会让 Docker 自动重启容器。目标服务器的 TLS、挂载权限和模型调用仍需实际验收。
