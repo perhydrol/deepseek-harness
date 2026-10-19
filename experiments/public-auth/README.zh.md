@@ -1,6 +1,6 @@
 # 单用户认证代理实验
 
-[English](README.md)
+[English](README.md) | 中文
 
 独立 TypeScript 项目，不加入 DSH 工作区，可以整目录迁移到独立仓库。[Better Auth](https://better-auth.com/docs) 负责密码散列、持久会话、签名 Cookie、CSRF 防护及限流；[Fastify HTTP Proxy](https://github.com/fastify/fastify-http-proxy) 负责 HTTP 流式转发和 WebSocket 转发。不修改 DSH 源码或认证机制：代理使用私有的 DSH 启动链接换取内部 Cookie，浏览器仅获得独立会话凭证。代理不会向上游传递浏览器凭证或客户端声明的转发信息。
 
@@ -27,6 +27,8 @@ node dist/main.js serve --origin http://127.0.0.1:8080 --launch-url-file ./launc
 Better Auth 按连接 IP 限制登录尝试，默认每 60 秒五次，可用 `--login-attempts`、`--login-window-seconds` 调整，并在 SQLite 中持久保存计数。当前置 TLS 代理通过回环地址连接时，客户端共享该代理的限流预算；传入的转发请求头不能覆盖它。上游修改请求绝不自动重试。收到上游 401 后，代理为下一次请求更新凭据，不重放失败请求。操作失败时结果可能未知，请检查 DSH 后再决定是否重试修改。
 
 ## Linux 与 Docker
+
+完整单容器部署、自动构建及持久化配置见[部署说明](deploy/README.zh.md)。下方 Dockerfile 仅构建独立认证代理。
 
 ```sh
 docker build -t dsh-public-auth .

@@ -1,0 +1,96 @@
+/** Linux Docker smoke: credentials persist across a complete container restart. */
+import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { randomUUID } from 'node:crypto'
+import process from 'node:process'
+import { setTimeout } from 'node:timers/promises'
+import { URLSearchParams } from 'node:url'
+
+const image = process.argv[2]
+assert.ok(image, 'Pass the built image tag')
+const name = `dsh-smoke-${randomUUID()}`
+const volume = `${name}-auth`
+const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+const request = (url, options) => globalThis.fetch(url, { ...options, signal: globalThis.AbortSignal.timeout(5000) })
+let port
+let origin
+const ready = async () => {
+  for (let attempt = 0; attempt < 90; attempt++) {
+    if (docker('inspect', '--format', '{{.State.Health.Status}}', name) === 'healthy') return
+    await setTimeout(1000)
+  }
+  throw new Error('Container did not become healthy')
+}
+try {
+  docker('volume', 'create', volume)
+  const initialized = docker('run', '--rm', '-v', `${volume}:/var/lib/dsh-auth`, '--entrypoint', 'node', image,
+    '/opt/auth/dist/main.js', 'init', '--state', '/var/lib/dsh-auth')
+  const password = /Administrator password \(shown once\): (\S+)/u.exec(initialized)?.[1]
+  assert.ok(password, 'Initialization did not return an administrator password')
+  // Docker allocates the host port. A separate exact Host exercises the external proxy configuration.
+  origin = 'http://localhost'
+  docker('run', '-d', '--name', name, '-p', '127.0.0.1::8080', '-v', `${volume}:/var/lib/dsh-auth`,
+    '-e', `PUBLIC_ORIGIN=${origin}`, image)
+  port = docker('port', name, '8080/tcp').split(':').at(-1)
+  const url = `http://127.0.0.1:${port}`
+  await ready()
+  const anonymous = await request(url, { headers: { host: 'localhost' }, redirect: 'manual' })
+  await anonymous.body?.cancel()
+  assert.equal(anonymous.status, 401)
+  const login = await request(`${url}/_auth/login`, { method: 'POST', redirect: 'manual',
+    headers: { host: 'localhost', origin, 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ password }) })
+  await login.body?.cancel()
+  assert.equal(login.status, 303)
+  const cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
+  assert.ok(cookie)
+  const authenticated = async (allowRenewal = false) => {
+    let response = await request(url, { headers: { host: 'localhost', cookie }, redirect: 'manual' })
+    await response.body?.cancel()
+    if (allowRenewal && response.status === 401) {
+      // Only this safe GET is repeated; mutations are never replayed by the proxy.
+      response = await request(url, { headers: { host: 'localhost', cookie }, redirect: 'manual' })
+      await response.body?.cancel()
+    }
+    assert.equal(response.status, 200)
+  }
+  await authenticated()
+  const previous = docker('exec', name, 'node', '-e',
+    'const fs=require("node:fs"); const pid=Number(fs.readFileSync("/run/dsh/harness.pid","utf8")); process.kill(pid,"SIGKILL"); console.log(pid)')
+  let recovered = false
+  for (let attempt = 0; attempt < 90; attempt++) {
+    try {
+      const current = docker('exec', name, 'node', '-e',
+        'console.log(require("node:fs").readFileSync("/run/dsh/harness.pid","utf8"))')
+      if (current !== previous) {
+        docker('exec', name, 'node', '/opt/auth/dist/healthcheck.js')
+        recovered = true
+        break
+      }
+    } catch (error) {
+      // The private file and listener are unavailable while Supervisor restarts DSH.
+      if (attempt === 89) throw error
+    }
+    await setTimeout(1000)
+  }
+  assert.ok(recovered, 'Supervisor did not recover the DSH child')
+  await authenticated(true)
+  docker('restart', '--time', '45', name)
+  await ready()
+  await authenticated()
+  const logs = docker('logs', name)
+  assert.doesNotMatch(logs, /[?&]token=(?!\[redacted\])/u)
+  assert.ok(!logs.includes(password), 'Password leaked to container logs')
+  docker('stop', '--time', '45', name)
+  assert.equal(docker('inspect', '--format', '{{.State.ExitCode}}', name), '0')
+  process.stdout.write('Container login, DSH crash recovery, persistent session, restart, log redaction and shutdown passed.\n')
+} finally {
+  for (const args of [['rm', '-f', '-v', name], ['volume', 'rm', volume]]) {
+    try { docker(...args) } catch (error) {
+      if (!String(error.stderr).includes('No such container')) {
+        process.stderr.write('Smoke cleanup failed; inspect the temporary Docker resources.\n')
+        process.exitCode = 1
+      }
+    }
+  }
+}

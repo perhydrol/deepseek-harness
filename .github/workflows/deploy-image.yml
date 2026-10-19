@@ -1,0 +1,57 @@
+name: deploy-image
+on:
+  push:
+    branches: [master]
+    paths:
+      - experiments/public-auth/**
+      - .github/workflows/deploy-image.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: deploy-image-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  IMAGE: ghcr.io/perhydrol/dsh-used-by-self
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve tags
+        id: tags
+        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: experiments/public-auth
+          file: experiments/public-auth/deploy/Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: ${{ env.IMAGE }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Validate deployment and image
+        env:
+          PUBLIC_ORIGIN: https://harness.example.com
+        run: |
+          docker compose -f experiments/public-auth/deploy/compose.yaml config --quiet
+          docker run --rm --entrypoint sh "$IMAGE:test" -ec 'test "$(pwd)" = /home/node; test "$(id -u)" = 1000; dsh --version; fish --version; nvim --version; uv --version'
+          node experiments/public-auth/deploy/smoke.mjs "$IMAGE:test"
+      - name: Publish validated image
+        if: github.ref == 'refs/heads/master'
+        run: |
+          docker tag "$IMAGE:test" "$IMAGE:sha-${{ steps.tags.outputs.short }}"
+          docker tag "$IMAGE:test" "$IMAGE:latest"
+          docker push "$IMAGE:sha-${{ steps.tags.outputs.short }}"
+          docker push "$IMAGE:latest"

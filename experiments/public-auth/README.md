@@ -1,6 +1,6 @@
 # Single-owner authentication proxy experiment
 
-[中文](README.zh.md)
+English | [中文](README.zh.md)
 
 An independent TypeScript project, excluded from the DSH workspace. It can be moved to a separate repository. [Better Auth](https://better-auth.com/docs) owns password hashing, persistent sessions, signed cookies, CSRF protection, and rate limiting; [Fastify HTTP Proxy](https://github.com/fastify/fastify-http-proxy) owns HTTP streaming and WebSocket forwarding. DSH source and authentication remain unchanged: the proxy exchanges a private DSH launch URL for an internal cookie, while browsers receive a separate session cookie. The fixed upstream receives neither browser credentials nor client forwarding assertions.
 
@@ -27,6 +27,8 @@ Open `/`; browser document navigation redirects to `/_auth/login`. The persisten
 Better Auth limits login attempts by socket IP, defaulting to five attempts per 60 seconds (`--login-attempts`, `--login-window-seconds`), persisting counters in SQLite. When a TLS proxy connects over loopback, clients share that proxy's budget; incoming forwarding headers cannot override it. Upstream mutations are never retried. On upstream 401 the proxy renews credentials for the next request, without replaying the failed request. Failed operations may have unknown outcomes; inspect DSH before repeating a change.
 
 ## Linux and Docker
+
+For the complete single-container deployment, automated builds, and persistent storage, see the [deployment guide](deploy/README.md). The Dockerfile below builds only the independent authentication proxy.
 
 ```sh
 docker build -t dsh-public-auth .

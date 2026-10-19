@@ -1,0 +1,29 @@
+name: hydrogen-harness
+services:
+  harness:
+    image: ghcr.io/perhydrol/dsh-used-by-self:latest
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 45s
+    ports:
+      - "127.0.0.1:3080:8080"
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN to your external HTTPS origin}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      SESSION_DAYS: ${SESSION_DAYS:-30}
+      LOGIN_ATTEMPTS: ${LOGIN_ATTEMPTS:-5}
+      LOGIN_WINDOW_SECONDS: ${LOGIN_WINDOW_SECONDS:-60}
+    volumes:
+      - user-home:/home/node
+      - dsh:/var/lib/dsh
+      - auth:/var/lib/dsh-auth
+      - uv:/var/lib/uv
+    tmpfs:
+      - /run/dsh:uid=1000,gid=1000,mode=0700
+volumes:
+  user-home:
+  dsh:
+  auth:
+  uv:
