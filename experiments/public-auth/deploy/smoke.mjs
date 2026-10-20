@@ -11,9 +11,11 @@ const image = process.argv[2]
 assert.ok(image, 'Pass the built image tag')
 const name = `dsh-smoke-${randomUUID()}`
 const volume = `${name}-auth`
+// A fixed loopback port avoids the ephemeral range, whose ports a busy runner
+// reassigns while a stopped container's forward is unbound.
+const proxyUrl = 'http://127.0.0.1:18080'
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
 const transientCodes = new Set(['ECONNREFUSED', 'ECONNRESET'])
-let port
 let origin
 let password
 const ready = async () => {
@@ -30,7 +32,7 @@ const send = async (path, options) => {
   let last
   for (let attempt = 0; attempt < 30; attempt++) {
     try {
-      return await request(`http://127.0.0.1:${port}${path}`, options)
+      return await request(`${proxyUrl}${path}`, options)
     } catch (error) {
       if (!transientCodes.has(error.code) || options.method) throw error
       last = error
@@ -45,13 +47,12 @@ try {
     '/opt/auth/dist/main.js', 'init', '--state', '/var/lib/dsh-auth')
   password = /Administrator password \(shown once\): (\S+)/u.exec(initialized)?.[1]
   assert.ok(password, 'Initialization did not return an administrator password')
-  // Docker allocates the host port. A separate exact Host exercises the external proxy configuration.
+  // A separate exact Host exercises the external proxy configuration.
   origin = 'http://localhost'
   // The probe mirrors the image HEALTHCHECK, which Podman's builder does not preserve.
-  docker('run', '-d', '--name', name, '-p', '127.0.0.1::8080', '-v', `${volume}:/var/lib/dsh-auth`,
+  docker('run', '-d', '--name', name, '-p', '127.0.0.1:18080:8080', '-v', `${volume}:/var/lib/dsh-auth`,
     '-e', `PUBLIC_ORIGIN=${origin}`, '--health-cmd', 'node /opt/auth/dist/healthcheck.js',
     '--health-interval', '30s', '--health-timeout', '5s', '--health-start-period', '90s', image)
-  port = docker('port', name, '8080/tcp').split(':').at(-1)
   await ready()
   const anonymous = await send('/', { headers: { host: 'localhost' } })
   await anonymous.body?.cancel()
@@ -104,7 +105,7 @@ try {
   assert.equal(docker('inspect', '--format', '{{.State.ExitCode}}', name), '0')
   process.stdout.write('Container login, DSH crash recovery, persistent session, restart, log redaction and shutdown passed.\n')
 } catch (error) {
-  for (const args of [['logs', '--tail', '100', name], ['inspect', '--format', '{{json .State.Health}}', name]]) {
+  for (const args of [['logs', '--tail', '100', name], ['inspect', '--format', '{{json .State.Health}}', name], ['port', name, '8080/tcp']]) {
     const result = spawnSync('docker', args, { encoding: 'utf8', timeout: 10_000 })
     let diagnostic = `${result.stdout ?? ''}${result.stderr ?? ''}`.replace(/([?&]token=)[^\s&#]*/giu, '$1[redacted]')
     if (password) diagnostic = diagnostic.replaceAll(password, '[redacted]')
