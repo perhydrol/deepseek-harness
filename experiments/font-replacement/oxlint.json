@@ -1,0 +1,4 @@
+{
+  "categories": { "correctness": "error" },
+  "env": { "browser": true, "node": true }
+}
