@@ -12,15 +12,32 @@ assert.ok(image, 'Pass the built image tag')
 const name = `dsh-smoke-${randomUUID()}`
 const volume = `${name}-auth`
 const docker = (...args) => execFileSync('docker', args, { encoding: 'utf8', timeout: 120_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+const transientCodes = new Set(['ECONNREFUSED', 'ECONNRESET'])
 let port
 let origin
 let password
 const ready = async () => {
-  for (let attempt = 0; attempt < 90; attempt++) {
-    if (docker('inspect', '--format', '{{.State.Health.Status}}', name) === 'healthy') return
+  for (let attempt = 0; attempt < 120; attempt++) {
+    // Podman reports no health state until the first probe completes.
+    if (docker('inspect', '--format', '{{if .State.Health}}{{.State.Health.Status}}{{end}}', name) === 'healthy') return
     await setTimeout(1000)
   }
   throw new Error('Container did not become healthy')
+}
+// Host forwarding can briefly refuse connections after a container restart.
+// Only safe GETs are retried; mutations are never replayed.
+const send = async (path, options) => {
+  let last
+  for (let attempt = 0; attempt < 30; attempt++) {
+    try {
+      return await request(`http://127.0.0.1:${port}${path}`, options)
+    } catch (error) {
+      if (!transientCodes.has(error.code) || options.method) throw error
+      last = error
+      await setTimeout(1000)
+    }
+  }
+  throw last
 }
 try {
   docker('volume', 'create', volume)
@@ -30,15 +47,16 @@ try {
   assert.ok(password, 'Initialization did not return an administrator password')
   // Docker allocates the host port. A separate exact Host exercises the external proxy configuration.
   origin = 'http://localhost'
+  // The probe mirrors the image HEALTHCHECK, which Podman's builder does not preserve.
   docker('run', '-d', '--name', name, '-p', '127.0.0.1::8080', '-v', `${volume}:/var/lib/dsh-auth`,
-    '-e', `PUBLIC_ORIGIN=${origin}`, image)
+    '-e', `PUBLIC_ORIGIN=${origin}`, '--health-cmd', 'node /opt/auth/dist/healthcheck.js',
+    '--health-interval', '30s', '--health-timeout', '5s', '--health-start-period', '90s', image)
   port = docker('port', name, '8080/tcp').split(':').at(-1)
-  const url = `http://127.0.0.1:${port}`
   await ready()
-  const anonymous = await request(url, { headers: { host: 'localhost' } })
+  const anonymous = await send('/', { headers: { host: 'localhost' } })
   await anonymous.body?.cancel()
   assert.equal(anonymous.status, 401)
-  const login = await request(`${url}/_auth/login`, { method: 'POST',
+  const login = await send('/_auth/login', { method: 'POST',
     headers: { host: 'localhost', origin, 'content-type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ password }) })
   await login.body?.cancel()
@@ -46,11 +64,11 @@ try {
   const cookie = login.headers.getSetCookie().map(value => value.split(';')[0]).join('; ')
   assert.ok(cookie)
   const authenticated = async (allowRenewal = false) => {
-    let response = await request(url, { headers: { host: 'localhost', cookie } })
+    let response = await send('/', { headers: { host: 'localhost', cookie } })
     await response.body?.cancel()
     if (allowRenewal && response.status === 401) {
       // Only this safe GET is repeated; mutations are never replayed by the proxy.
-      response = await request(url, { headers: { host: 'localhost', cookie } })
+      response = await send('/', { headers: { host: 'localhost', cookie } })
       await response.body?.cancel()
     }
     assert.equal(response.status, 200)
