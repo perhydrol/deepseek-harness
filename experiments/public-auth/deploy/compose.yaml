@@ -16,14 +16,8 @@ services:
       LOGIN_ATTEMPTS: ${LOGIN_ATTEMPTS:-5}
       LOGIN_WINDOW_SECONDS: ${LOGIN_WINDOW_SECONDS:-60}
     volumes:
-      - user-home:/home/node
-      - dsh:/var/lib/dsh
-      - auth:/var/lib/dsh-auth
-      - uv:/var/lib/uv
+      - data:/data
     tmpfs:
       - /run/dsh:uid=1000,gid=1000,mode=0700
 volumes:
-  user-home:
-  dsh:
-  auth:
-  uv:
+  data:

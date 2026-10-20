@@ -31,14 +31,19 @@ ENV NODE_ENV=production HOME=/home/node DSH_HOME=/var/lib/dsh \
     UV_PYTHON_BIN_DIR=/var/lib/uv/python/bin UV_TOOL_DIR=/var/lib/uv/python/tools \
     UV_TOOL_BIN_DIR=/var/lib/uv/python/bin VIRTUAL_ENV=/var/lib/uv/python/venv \
     PATH=/var/lib/uv/python/venv/bin:/var/lib/uv/python/bin:/opt/dsh/node_modules/.bin:${PATH} \
-    DSH_TELEMETRY_DISABLED=1
-RUN mkdir -p /var/lib/dsh /var/lib/dsh-auth /var/lib/uv /run/dsh \
-    && chown -R node:node /var/lib/dsh /var/lib/dsh-auth /var/lib/uv /run/dsh \
-    && chmod 700 /var/lib/dsh /var/lib/dsh-auth /run/dsh
+    DSH_TELEMETRY_DISABLED=1 TMPDIR=/data/tmp
+RUN mkdir -p /data/dsh /data/auth /data/uv /data/tmp /run/dsh \
+    && mv /home/node /data/home \
+    && ln -s /data/home /home/node \
+    && ln -s /data/dsh /var/lib/dsh \
+    && ln -s /data/auth /var/lib/dsh-auth \
+    && ln -s /data/uv /var/lib/uv \
+    && chown -R node:node /data /run/dsh \
+    && chmod 700 /data /data/auth /data/dsh /data/tmp /run/dsh
 USER 1000:1000
 WORKDIR /home/node
 RUN uv venv --python /usr/bin/python3 /var/lib/uv/python/venv
-VOLUME ["/home/node", "/var/lib/dsh", "/var/lib/dsh-auth", "/var/lib/uv"]
+VOLUME ["/data"]
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s \
     CMD ["node", "/opt/auth/dist/healthcheck.js"]

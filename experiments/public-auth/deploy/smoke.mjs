@@ -10,7 +10,7 @@ import { request } from '../src/http-request.mjs'
 const image = process.argv[2]
 assert.ok(image, 'Pass the built image tag')
 const name = `dsh-smoke-${randomUUID()}`
-const volume = `${name}-auth`
+const volume = `${name}-data`
 // A fixed loopback port avoids the ephemeral range, whose ports a busy runner
 // reassigns while a stopped container's forward is unbound.
 const proxyUrl = 'http://127.0.0.1:18080'
@@ -43,17 +43,42 @@ const send = async (path, options) => {
 }
 try {
   docker('volume', 'create', volume)
-  const initialized = docker('run', '--rm', '-v', `${volume}:/var/lib/dsh-auth`, '--entrypoint', 'node', image,
+  const initialized = docker('run', '--rm', '-v', `${volume}:/data`, '--entrypoint', 'node', image,
     '/opt/auth/dist/main.js', 'init', '--state', '/var/lib/dsh-auth')
   password = /Administrator password \(shown once\): (\S+)/u.exec(initialized)?.[1]
   assert.ok(password, 'Initialization did not return an administrator password')
   // A separate exact Host exercises the external proxy configuration.
   origin = 'http://localhost'
   // The probe mirrors the image HEALTHCHECK, which Podman's builder does not preserve.
-  docker('run', '-d', '--name', name, '-p', '127.0.0.1:18080:8080', '-v', `${volume}:/var/lib/dsh-auth`,
+  docker('run', '-d', '--name', name, '-p', '127.0.0.1:18080:8080', '-v', `${volume}:/data`,
     '-e', `PUBLIC_ORIGIN=${origin}`, '--health-cmd', 'node /opt/auth/dist/healthcheck.js',
     '--health-interval', '30s', '--health-timeout', '5s', '--health-start-period', '90s', image)
   await ready()
+  docker('exec', name, 'node', '--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import { mkdtempSync, writeFileSync, linkSync, statSync, rmSync } from 'node:fs';
+    import { tmpdir } from 'node:os';
+    import { join } from 'node:path';
+    const directories = [];
+    try {
+      const cache = mkdtempSync('/var/lib/uv/link-probe-');
+      directories.push(cache);
+      const source = join(cache, 'source');
+      writeFileSync(source, 'hardlink probe');
+      assert.equal(tmpdir(), '/data/tmp');
+      for (const parent of ['/home/node', '/var/lib/dsh', tmpdir()]) {
+        const target = mkdtempSync(join(parent, 'link-probe-'));
+        directories.push(target);
+        const linked = join(target, 'linked');
+        linkSync(source, linked);
+        assert.equal(statSync(source).ino, statSync(linked).ino);
+        assert.equal(statSync(source).dev, statSync(linked).dev);
+      }
+      assert.equal(statSync(source).nlink, 4);
+    } finally {
+      for (const directory of directories.reverse()) rmSync(directory, { recursive: true });
+    }
+  `)
   const anonymous = await send('/', { headers: { host: 'localhost' } })
   await anonymous.body?.cancel()
   assert.equal(anonymous.status, 401)

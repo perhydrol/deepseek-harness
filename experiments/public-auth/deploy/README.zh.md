@@ -33,7 +33,11 @@ Compose 只将认证代理发布到宿主机 `127.0.0.1:3080`；DSH 只监听容
 | `/var/lib/uv` | Python 虚拟环境、工具与缓存 |
 | `/run/dsh` | 临时私有启动链接，重建后重新生成 |
 
-命名卷由镜像初始化所有权；绑定挂载需要提前允许 UID/GID `1000:1000` 写入。备份前停止容器，并一并保护认证签名密钥及数据库。保留卷更新镜像，不要使用 `down -v`。用户安装的 Python 包可通过 `uv pip install` 或 `uv tool install` 保存到 uv 卷；项目自己的 `uv run` 环境保存在项目目录。系统 Python 变化时可能需要重建默认虚拟环境。
+Compose 仅在 `/data` 挂载一个命名卷。`/home/node`、`/var/lib/dsh`、`/var/lib/dsh-auth` 和 `/var/lib/uv` 分别是指向其中 `home`、`dsh`、`auth` 和 `uv` 子目录的符号链接。`TMPDIR=/data/tmp` 让默认临时环境与 uv 缓存处于同一挂载点。这些目录之间可以建立硬链接，不要用独立挂载替换符号链接。显式使用 `/tmp` 或额外挂载项目目录仍可能让 uv 回退为拷贝。`/data/tmp` 中的临时文件在容器重建后仍保留，需要应用正常清理。
+
+命名卷由镜像初始化所有权；绑定挂载必须包含初始化后的目录树，并允许 UID/GID `1000:1000` 写入。备份前停止容器，并一并保护认证签名密钥及数据库。保留卷更新镜像，不要使用 `down -v`。用户安装的 Python 包可通过 `uv pip install` 或 `uv tool install` 保存；项目自己的 `uv run` 环境保存在项目目录。系统 Python 变化时可能需要重建默认虚拟环境。
+
+替换使用四卷布局且数据可丢弃的部署时，先用旧 Compose 文件执行 `docker compose --env-file server.env down -v`，再替换配置和镜像。这会删除该部署所有命名卷数据，包括项目、凭据和登录会话。随后使用新 Compose 文件，按首次部署步骤重新初始化。已有数据不会自动迁移。
 
 `PUBLIC_ORIGIN` 必填，必须为不带路径的 HTTPS 来源；本地试用允许回环 HTTP。`DEEPSEEK_API_KEY` 可选，也可在 DSH 中配置模型凭据。`SESSION_DAYS` 默认 30，`LOGIN_ATTEMPTS` 默认 5，`LOGIN_WINDOW_SECONDS` 默认 60；均需正整数，修改后重建容器。会话与错误恢复行为见[代理说明](../README.zh.md)。
 

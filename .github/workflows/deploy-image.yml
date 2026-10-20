@@ -46,7 +46,7 @@ jobs:
           PUBLIC_ORIGIN: https://harness.example.com
         run: |
           docker compose -f experiments/public-auth/deploy/compose.yaml config --quiet
-          docker run --rm --entrypoint sh "$IMAGE:test" -ec 'test "$(pwd)" = /home/node; test "$(id -u)" = 1000; dsh --version; fish --version; nvim --version; uv --version'
+          docker run --rm --entrypoint sh "$IMAGE:test" -ec 'test "$(pwd -P)" = /data/home; test "$(id -u)" = 1000; dsh --version; fish --version; nvim --version; uv --version'
           node experiments/public-auth/deploy/smoke.mjs "$IMAGE:test"
       - name: Publish validated image
         if: github.ref == 'refs/heads/master'
