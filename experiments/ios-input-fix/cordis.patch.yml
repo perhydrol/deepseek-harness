@@ -1,0 +1,3 @@
+- insert:
+    - id: ios-input-fix
+      name: '@local/dsh-ios-input-fix'

@@ -1,0 +1,26 @@
+{
+  "name": "@local/dsh-ios-input-fix",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Prevent iOS composer focus zoom and fit DSH to the visible keyboard viewport.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": ["index.js", "client.js", "src", "tests", "build.mjs", "oxlint.json", "cordis.patch.yml", "locale/*.json", "icon.svg", "README.md"],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/viewport.test.js"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": ["@deepseek-ai/dsh-client-ui-layout", "@deepseek-ai/dsh-client-ui-conversation"]
+    }
+  }
+}
