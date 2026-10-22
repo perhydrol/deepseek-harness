@@ -48,7 +48,7 @@ docker compose --env-file server.env build --pull
 docker compose --env-file server.env up -d
 ```
 
-本地构建使用本目录的 Dockerfile。修改其 `DSH_VERSION` 默认值即可选择官方包版本；官方包未发布的源码功能不会进入镜像。系统工具来自 Debian，包含 fish、Neovim、Bash、Git、SSH、ripgrep、Python 和 Supervisor；uv 来自其官方镜像。
+本地构建使用本目录的 Dockerfile。修改其 `DSH_VERSION` 默认值即可选择官方包版本；官方包未发布的源码功能不会进入镜像。系统工具来自 Debian，包含 fish、Neovim、Bash、Git、SSH、ripgrep、Python、Pandoc、Poppler 工具（包括 `pdftoppm`）、htop 和 Supervisor；uv 来自其官方镜像。
 
 推送 `master` 且修改本项目或镜像 workflow 时自动构建 Linux amd64 镜像，验证成功后发布 `latest` 与 `sha-<短提交号>`；也可手动触发。固定部署版本可将 Compose 的 image 改成对应提交标签。上游 workflows 仅保留手动或复用入口；依赖 PR、Issue 事件数据的任务并不因此获得完整手动运行能力。
 

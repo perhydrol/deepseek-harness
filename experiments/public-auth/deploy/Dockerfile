@@ -17,7 +17,7 @@ COPY --from=uv /uv /uvx /usr/local/bin/
 # Debian security updates are selected when rebuilding the image.
 # hadolint ignore=DL3008
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y bash ca-certificates curl fish git neovim openssh-client python3 ripgrep supervisor \
+    && apt-get install --no-install-recommends -y bash ca-certificates curl fish git htop neovim openssh-client pandoc poppler-utils python3 ripgrep supervisor \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /opt/dsh
 RUN npm install --omit=dev --save-exact "@deepseek-ai/dsh@${DSH_VERSION}" \

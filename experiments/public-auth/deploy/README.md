@@ -48,7 +48,7 @@ docker compose --env-file server.env build --pull
 docker compose --env-file server.env up -d
 ```
 
-Local builds use this directory's Dockerfile. Change its `DSH_VERSION` default to select an official package version; unpublished source features are absent from the image. Debian supplies fish, Neovim, Bash, Git, SSH, ripgrep, Python, and Supervisor; uv comes from its official image.
+Local builds use this directory's Dockerfile. Change its `DSH_VERSION` default to select an official package version; unpublished source features are absent from the image. Debian supplies fish, Neovim, Bash, Git, SSH, ripgrep, Python, Pandoc, Poppler utilities (including `pdftoppm`), htop, and Supervisor; uv comes from its official image.
 
 Master pushes that change this project or the image workflow build Linux amd64 images and publish `latest` and `sha-<short-commit>` only after validation; manual dispatch is also available. Pin a deployment by changing the Compose image to a commit tag. Upstream workflows retain only manual or reusable entrypoints; jobs requiring PR or Issue event data do not thereby become fully functional manual workflows.
 
