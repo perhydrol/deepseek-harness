@@ -34,7 +34,11 @@ test('authenticated proxy preserves exact file and ZIP bytes, filenames, and log
     sessions: { get: id => id === 'fixture' ? { header: { cwd: '/workspace' } } : undefined },
     sandboxPolicy: { workspaceRoot: '/workspace' },
     workspaceFiles: {
-      async list(_scope, path) { return { path, entries: path === '' ? [{ name: '报告.bin', type: 'file' }, { name: 'empty', type: 'directory' }] : [], truncated: false }; },
+      async list(_scope, path) {
+        assert.notEqual(path, '', 'the workspace service rejects empty paths');
+        if (path === '.') path = '';
+        return { path, entries: path === '' ? [{ name: '报告.bin', type: 'file' }, { name: 'empty', type: 'directory' }] : [], truncated: false };
+      },
       async readBytes() { return { data: bytes, eof: true, version: 'v1' }; },
     },
     webServer: { register: route => { handler = route.handler; return () => { handler = undefined; }; } },

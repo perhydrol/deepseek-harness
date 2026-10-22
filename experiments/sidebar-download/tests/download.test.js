@@ -14,6 +14,8 @@ function files() {
   const data = { 'one.txt': 'hello', 'folder/two.txt': 'world' };
   return {
     async list(_scope, path) {
+      assert.notEqual(path, '', 'the workspace service rejects empty paths');
+      if (path === '.') path = '';
       if (path === '') return { path, entries: [{ name: 'one.txt', type: 'file' }, { name: 'folder', type: 'directory' }], truncated: false };
       return { path, entries: [{ name: 'two.txt', type: 'file' }, { name: 'empty', type: 'directory' }].filter(() => path === 'folder'), truncated: false };
     },

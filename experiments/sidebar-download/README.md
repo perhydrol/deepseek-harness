@@ -54,4 +54,6 @@ This bundle targets Web profiles and authenticated owner browsers; shared peers 
 
 ## Development
 
+The selector represents the workspace root as an empty relative path; the Host passes `.` to the workspace file service, which rejects empty request paths and returns an empty canonical path for the root.
+
 TypeScript sources are in [src](src); installable output is [lib/index.js](lib/index.js) and [client.js](client.js). The checkout's tsdown builds both outputs through `node experiments/sidebar-download/build.mjs`. Type checking uses `node node_modules/typescript/bin/tsc -p experiments/sidebar-download/tsconfig.json`. Tests use `node --import tsx/esm --test experiments/sidebar-download/tests/*.test.js` from the repository root with both this plugin's and public-auth's dependencies installed. Tests cover exact bytes, ZIP contents, empty directories, traversal, truncation, quotas, authentication, disposal, proxy delivery, version changes, and partial-output cleanup. A synthetic 16 MiB input verifies bounded read windows and continued event-loop turns; it is not a deployment throughput benchmark. Archiver is MIT licensed and installed as an external runtime dependency; JSZip is used only to inspect ZIPs in tests. The icon is original artwork.

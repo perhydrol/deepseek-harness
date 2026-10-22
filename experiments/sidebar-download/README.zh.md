@@ -54,4 +54,6 @@ Host 逐个文件分块读取，通过 Archiver 的原生异步 zlib 流压缩�
 
 ## 开发
 
+选择器用空相对路径表示工作区根目录；Host 调用工作区文件服务时传入 `.`，因为该服务拒绝空请求路径，并用空规范路径返回根目录。
+
 TypeScript 源码位于 [src](src)，可安装产物为 [lib/index.js](lib/index.js) 和 [client.js](client.js)。在仓库中通过 `node experiments/sidebar-download/build.mjs` 使用已有 tsdown 构建两端产物。类型检查使用 `node node_modules/typescript/bin/tsc -p experiments/sidebar-download/tsconfig.json`。安装本插件及 public-auth 的依赖后，在仓库根目录通过 `node --import tsx/esm --test experiments/sidebar-download/tests/*.test.js` 运行测试。测试覆盖精确字节、ZIP 内容、空目录、路径穿越、截断、配额、登录校验、卸载、代理传输、版本变化和半成品清理。16 MiB 合成输入用于验证读取窗口有界、事件循环能继续运行，不是部署吞吐基准。Archiver 使用 MIT 许可证，作为外部运行时依赖安装；JSZip 仅用于测试中检查 ZIP。图标为原创。

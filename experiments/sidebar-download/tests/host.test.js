@@ -17,7 +17,8 @@ function fixture(admission = { peer: { principal: { kind: 'owner' } } }) {
       async list(scope, path) {
         called++;
         assert.deepEqual(scope, { sessionId: 'valid', workspaceRoot: '/work' });
-        return { path, entries: [{ name: '中文.txt', type: 'file' }], truncated: false };
+        assert.notEqual(path, '', 'the workspace service rejects empty paths');
+        return { path: path === '.' ? '' : path, entries: [{ name: '中文.txt', type: 'file' }], truncated: false };
       },
       async readBytes() { return { data: Buffer.from('exact bytes'), eof: true, version: 'v1' }; },
     },

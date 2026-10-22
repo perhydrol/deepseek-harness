@@ -39,7 +39,7 @@ function selectionPaths(input) {
 */
 async function directory(files, scope, path, signal) {
 	signal.throwIfAborted();
-	const listing = await files.list(scope, path, signal);
+	const listing = await files.list(scope, path === "" ? "." : path, signal);
 	if (listing.truncated) throw new DownloadError("listing-truncated", 413);
 	if (listing.path !== path) throw new DownloadError("unsupported-entry");
 	for (const entry of listing.entries) if (entry.name === "" || entry.name.includes("/") || selectionPaths([entry.name])[0] !== entry.name) throw new DownloadError("unsupported-entry");

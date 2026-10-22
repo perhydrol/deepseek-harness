@@ -46,7 +46,7 @@ export function selectionPaths(input: unknown): string[] {
  */
 export async function directory(files: Files, scope: Scope, path: string, signal: AbortSignal) {
   signal.throwIfAborted();
-  const listing = await files.list(scope, path, signal);
+  const listing = await files.list(scope, path === '' ? '.' : path, signal);
   if (listing.truncated) throw new DownloadError('listing-truncated', 413);
   if (listing.path !== path) throw new DownloadError('unsupported-entry');
   for (const entry of listing.entries) {
