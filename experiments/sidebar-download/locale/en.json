@@ -1,0 +1,21 @@
+{
+  "meta": { "title": "Sidebar downloads", "description": "Download workspace files; package directories and multiple selections as ZIP." },
+  "ui": {
+    "download": "Download", "title": "Select files to download", "close": "Close", "up": "Parent directory",
+    "all": "Select this directory", "prepare": "Prepare download", "cancel": "Cancel", "save": "Save download",
+    "ready": "Ready to save", "loading": "Loading", "empty": "This directory is empty", "retry": "Retry",
+    "selected": "Selected", "clear": "Clear selection", "open": "Open directory",
+    "invalid-selection": "The selection contains an unsupported path.",
+    "listing-truncated": "This directory exceeds the server listing limit. Choose a smaller directory.",
+    "unsupported-entry": "The selection contains a link, alias, or unsupported entry.",
+    "not-found": "The session or selected file no longer exists.",
+    "size-limit": "The selection exceeds the download size limit. Select fewer files.",
+    "entry-limit": "The selection contains too many entries. Select fewer files.",
+    "read-failed": "Cannot prepare the download. Check access and file-size limits, then retry.",
+    "incomplete-read": "The file could not be read completely. Retry the download.",
+    "file-changed": "A file changed while being read. Prepare the download again.",
+    "expired": "The prepared download expired or was already used. Prepare it again.",
+    "busy": "The server is preparing other downloads. Try again shortly.",
+    "denied": "Downloading requires the owner's authenticated browser session."
+  }
+}

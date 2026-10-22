@@ -1,0 +1,11 @@
+- insert:
+    - id: local-sidebar-download
+      name: '@local/dsh-sidebar-download'
+      config:
+        maxBytes: 134217728
+        maxEntries: 5000
+        maxConcurrent: 2
+        chunkBytes: 262144
+        compressionLevel: 3
+        maxPreparedDownloads: 4
+        preparedTtlMs: 300000

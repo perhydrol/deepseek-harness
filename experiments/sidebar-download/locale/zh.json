@@ -1,0 +1,21 @@
+{
+  "meta": { "title": "侧边栏下载", "description": "下载工作区文件，目录或多选文件先在服务端打包为 ZIP。" },
+  "ui": {
+    "download": "下载", "title": "选择要下载的文件", "close": "关闭", "up": "上级目录",
+    "all": "选择当前目录", "prepare": "准备下载", "cancel": "取消", "save": "保存下载",
+    "ready": "已准备好，可以保存", "loading": "加载中", "empty": "当前目录为空", "retry": "重试",
+    "selected": "已选", "clear": "清空选择", "open": "打开目录",
+    "invalid-selection": "选择中包含不支持的路径",
+    "listing-truncated": "目录条目超过服务端列表上限，请选择更小的目录",
+    "unsupported-entry": "选择中包含链接、路径别名或不支持的文件类型",
+    "not-found": "会话或所选文件已不存在",
+    "size-limit": "所选内容超过下载大小上限，请减少文件",
+    "entry-limit": "所选内容包含过多条目，请减少文件",
+    "read-failed": "无法准备下载，请检查访问权限和文件大小限制后重试",
+    "incomplete-read": "未能完整读取文件，请重试下载",
+    "file-changed": "读取时文件发生变化，请重新准备下载",
+    "expired": "下载已过期或已使用，请重新准备",
+    "busy": "服务端正在准备其他下载，请稍后重试",
+    "denied": "下载需要所有者已登录的浏览器会话"
+  }
+}

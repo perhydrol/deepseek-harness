@@ -1,0 +1,16 @@
+{
+  "name": "@local/dsh-sidebar-download",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Download selected workspace files and directories from the sidebar.",
+  "exports": { ".": "./lib/index.js", "./client": "./client.js", "./locale/*.json": "./locale/*.json", "./icon": "./icon.svg" },
+  "files": ["lib", "client.js", "src", "locale", "icon.svg", "cordis.patch.yml", "README.md", "README.zh.md"],
+  "dependencies": { "archiver": "8.0.0" },
+  "devDependencies": { "jszip": "3.10.1", "@types/archiver": "8.0.0" },
+  "scripts": { "build": "node build.mjs", "test": "node --import tsx/esm --test tests/*.test.js" },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "immediately": true, "inject": ["@deepseek-ai/dsh-client-ui-sidebar-files"] }
+  }
+}
