@@ -24,6 +24,23 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   let exchangeStarted: (() => void) | undefined
   let releaseExchange: (() => void) | undefined
   let captured: IncomingHttpHeaders = {}
+  const immutable = 'public, max-age=31536000, immutable'
+  const resources = [
+    { path: '/assets/index-CN7NIWNw.js', type: 'application/javascript', cacheable: true },
+    { path: '/assets/index-BxpfOGf3.css', type: 'text/css; charset=utf-8', cacheable: true },
+    { path: '/plugins/??@example/plugin/client.js&rev=ec4b9a3a01eb', type: 'text/javascript', cache: immutable, cacheable: true },
+    { path: '/plugins/@example/plugin/client.chunk.js?rev=ec4b9a3a01eb', type: 'text/javascript', cache: immutable, cacheable: true },
+    { path: '/assets/plain.js', type: 'text/javascript', cacheable: false },
+    { path: '/assets/index-CN7NIWNw.js?preview=1', type: 'text/javascript', cacheable: false },
+    { path: '/assets/document-CN7NIWNw.js', type: 'text/html', cacheable: false },
+    { path: '/assets/missing-CN7NIWNw.js', type: 'text/javascript', status: 404, cacheable: false },
+    { path: '/assets/refused-CN7NIWNw.js', type: 'text/javascript', status: 401, cacheable: false },
+    { path: '/assets/unavailable-CN7NIWNw.js', type: 'text/javascript', status: 503, cacheable: false },
+    { path: '/plugins/??@example/plugin/client.js', type: 'text/javascript', cache: immutable, cacheable: false },
+    { path: '/plugins/??@example/plugin/client.js&rev=ec4b9a3a01ec', type: 'text/javascript', cacheable: false },
+    { path: '/plugins/??@example/plugin/client.js&rev=ec4b9a3a01ed', type: 'text/javascript', cache: 'no-store, immutable', cacheable: false },
+    { path: '/api/file?path=/assets/index-CN7NIWNw.js', type: 'text/javascript', cache: immutable, cacheable: false },
+  ]
   const upstream = createServer((request, response) => {
     if (request.url === '/?token=private-token') {
       exchanges++
@@ -38,6 +55,14 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     captured = request.headers
     if (request.headers.cookie !== 'dsh-auth-fixture=private-cookie') {
       response.writeHead(401).end()
+      return
+    }
+    const resource = resources.find(value => value.path === request.url)
+    if (resource) {
+      response.writeHead(resource.status ?? 200, {
+        'content-type': resource.type,
+        ...(resource.cache === undefined ? {} : { 'cache-control': resource.cache }),
+      }).end('fixture resource')
       return
     }
     if (request.url === '/fail-write') {
@@ -122,6 +147,23 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   assert.equal(captured.authorization, undefined)
   assert.equal(captured['x-forwarded-host'], undefined)
   assert.equal(result.headers['set-cookie'], undefined)
+  await t.test('only successful versioned scripts and styles receive private browser caching', async () => {
+    for (const resource of resources) {
+      for (const method of ['GET', 'HEAD'] as const) {
+        const response = await app.inject({ method, url: resource.path, headers })
+        assert.equal(response.statusCode, resource.status ?? 200)
+        assert.equal(response.headers['cache-control'], resource.cacheable
+          ? 'private, max-age=31536000, immutable' : 'no-store', `${method} ${resource.path}`)
+      }
+    }
+    const anonymous = await app.inject({ url: resources[0]!.path, headers: common })
+    assert.equal(anonymous.statusCode, 401)
+    assert.equal(anonymous.headers['cache-control'], 'no-store')
+    assert.equal((await app.inject({ method: 'POST', url: resources[0]!.path, headers })).headers['cache-control'], 'no-store')
+    for (const path of ['/', '/_auth/login', '/_auth/session', '/api/settings/mutate', '/stream']) {
+      assert.equal((await app.inject({ url: path, headers })).headers['cache-control'], 'no-store', path)
+    }
+  })
   assert.equal((await app.inject({ url: '/stream', headers })).body, 'data: first\n\ndata: second\n\n')
   const before = requests
   assert.equal((await app.inject({ method: 'POST', url: '/fail-write', headers })).statusCode, 503)

@@ -188,13 +188,26 @@ export async function createProxy(config: ProxyConfig) {
       retriesCount: 0,
       onResponse: (_request, reply, response) => {
         if (response.statusCode === 401) upstream.expires = 0
+        if (response.statusCode !== 200) reply.header('cache-control', 'no-store')
         void reply.send(response.stream)
       },
       rewriteRequestHeaders: request => upstreamHeaders(request),
-      rewriteHeaders: headers => {
+      rewriteHeaders: (headers, request) => {
         const result = { ...headers }
         delete result['set-cookie']
         result['cache-control'] = 'no-store'
+        if (request !== undefined && (request.method === 'GET' || request.method === 'HEAD')) {
+          const url = new URL(request.url, origin)
+          const contentType = headers['content-type']?.split(';')[0]?.trim().toLowerCase()
+          const isCode = contentType === 'text/javascript' || contentType === 'application/javascript' || contentType === 'text/css'
+          const hashedAsset = /^\/assets\/[^/]+-[A-Za-z0-9_-]{8,}\.(?:js|css)$/.test(url.pathname) && url.search === ''
+          const upstreamCache = headers['cache-control']?.split(',').map(value => value.trim().toLowerCase()) ?? []
+          const versionedPlugin = url.pathname.startsWith('/plugins/') && url.searchParams.has('rev')
+            && upstreamCache.includes('immutable') && !upstreamCache.includes('no-store')
+          if (isCode && (hashedAsset || versionedPlugin)) {
+            result['cache-control'] = 'private, max-age=31536000, immutable'
+          }
+        }
         const location = result.location
         if (typeof location === 'string' && location.startsWith(upstream.origin + '/')) {
           result.location = origin.origin + location.slice(upstream.origin.length)

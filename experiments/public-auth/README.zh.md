@@ -24,6 +24,8 @@ node dist/main.js serve --origin http://127.0.0.1:8080 --launch-url-file ./launc
 
 浏览器访问 `/` 会跳转到 `/_auth/login`。HttpOnly、SameSite=Strict 的持久 Cookie 默认有效 30 天，可通过 `--session-days` 调整，不采用滑动续期。HTTPS 来源额外设置 Secure 和 `__Secure-` 前缀。浏览器 JavaScript 不会将凭证写入 localStorage。带同源 Origin 请求头的 `POST /_auth/logout` 撤销该会话并断开其 WebSocket；会话到期也会断开其 WebSocket。`GET /_auth/session` 检查登录状态。
 
+已鉴权的 GET、HEAD 请求收到状态码 200 时，JavaScript 和 CSS 可以在浏览器私有缓存一年（`private, max-age=31536000, immutable`）：`/assets/` 文件要求文件名带哈希，`/plugins/` 资源要求查询参数带 `rev`，且 DSH 上游声明 `immutable`。资源哈希或插件修订变化后使用新 URL。HTML、API、附件、认证响应、错误和无版本资源仍为 `no-store`；共享代理和 CDN 缓存必须保持关闭。已缓存的代码可能在注销后留在浏览器中，复用时无需再次发起鉴权请求。代码不含 Session 数据；网络请求仍须通过鉴权。
+
 Better Auth 按连接 IP 限制登录尝试，默认每 60 秒五次，可用 `--login-attempts`、`--login-window-seconds` 调整，并在 SQLite 中持久保存计数。当前置 TLS 代理通过回环地址连接时，客户端共享该代理的限流预算；传入的转发请求头不能覆盖它。上游修改请求绝不自动重试。收到上游 401 后，代理为下一次请求更新凭据，不重放失败请求。操作失败时结果可能未知，请检查 DSH 后再决定是否重试修改。
 
 ## Linux 与 Docker
