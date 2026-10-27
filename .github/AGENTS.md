@@ -2,7 +2,7 @@
 
 This fork automatically runs only [deploy-image](workflows/deploy-image.yml), on relevant master pushes. It builds and validates the Linux deployment image on Ubuntu before publishing to GHCR. Upstream workflows retain manual and reusable entrypoints only; event-dependent upstream jobs may skip or require adaptation when dispatched manually. Preserve that restriction when importing upstream changes.
 
-Run Windows jobs (`windows-*` labels) under native `pwsh`. Preserve the existing per-platform switches (`selfhosted` for in-house runners and `blacksmith` for hosted runners), Dependabot fallbacks, and reusable Python runtime platform inputs in retained upstream workflows.
+Run jobs on Windows runners (`windows-*` labels) under native `pwsh`. Retain the separate native Windows jobs in `ci-windows.yml` and Python jobs in `ci-python.yml`, including their `windows checks passed` and `python checks passed` verdicts; Linux jobs in `ci.yml` report `all checks passed`. These workflows remain manual-only in this fork. Preserve their shared concurrency and Node environment, the existing per-platform switches (`selfhosted` for in-house runners and `blacksmith` for hosted runners), Dependabot fallbacks, and reusable Python runtime platform inputs. Master platform checks, Wine, self-hosted standbys, and manual runner benchmarks remain in `ci-master.yml` ([platform policy](workflows/ci-master.yml), [failover runbook](../.agents/notes/implemented/process/2026-07-26-ci-failover-runbook.md)).
 
 The manual [Windows packaging workflow](workflows/windows-package.yml) uses the dedicated self-hosted Windows x64 label `dsh-win-package-trial` under native `pwsh`; preserve this routing separately from the automatic CI lanes.
 
