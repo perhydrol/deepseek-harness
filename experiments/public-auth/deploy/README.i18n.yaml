@@ -8,12 +8,15 @@
 /single-container-deployment/first-deployment:
   en: c326cb1164be3dba
   zh: 035df0e5fa697a5f
+/single-container-deployment/nginx-and-client-ip-addresses:
+  en: 34acd64ba9143e33
+  zh: 0e3298dc142d3ad2
 /single-container-deployment/persistence-and-configuration:
   en: 45619f787f697571
   zh: 60e80c296a9823bd
 /single-container-deployment/build-and-update:
-  en: 919c938576467972
-  zh: 5518cd5ec654346d
+  en: cb5bc0a9b44b6541
+  zh: 25ef67d8fff6e31e
 /single-container-deployment/verification-scope:
   en: 91aed97b96c8014e
   zh: ded601132548f77f

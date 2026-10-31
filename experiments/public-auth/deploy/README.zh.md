@@ -23,6 +23,25 @@ docker compose --env-file server.env ps
 
 Compose 只将认证代理发布到宿主机 `127.0.0.1:3080`；DSH 只监听容器内 `127.0.0.1:3081`，没有直接发布端口。默认目录为 `/home/node`，HOME 同样指向该目录。进入 fish 使用 `docker compose --env-file server.env exec harness fish`，编辑器命令为 `nvim`；DSH 的 Bash 工具仍使用 Bash。
 
+## Nginx 与客户端 IP
+
+随附的 Compose 与 Nginx 配置支持 Nginx 运行在 Docker 宿主机或使用 host 网络：浏览器 → HTTPS Nginx → 宿主机 `127.0.0.1:3080` → 认证代理。保留回环端口绑定。普通 bridge 网络中的 Nginx 容器需要单独配置通往认证代理的私有网络路径；仅修改上游主机名，不能让该容器访问宿主机的回环监听端口。不要通过将认证代理发布到公网来解决连通问题。
+
+认证代理设置了 `trustProxy: false`。活动记录和 Better Auth 登录限流均使用连接对端地址，可能是 Nginx 容器地址或 Docker 网关地址。共享该地址的浏览器共享 `LOGIN_ATTEMPTS` 额度；提高额度只会改变共享限制，不能恢复客户端 IP。部署配置没有用于信任 Nginx 转发头的环境变量。仅修改 Nginx，不能让认证代理记录真实客户端 IP 或按客户端 IP 分别限流。
+
+对于直接面向浏览器的 Nginx，可在现有 `location /` 中加入以下指令，用 Nginx 观察到的客户端地址覆盖客户端传入的 IP 请求头。它们可以配合[随附示例](nginx.conf.example)使用，但当前认证代理仍忽略这些头：
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+需要单一地址时使用覆盖方式，而不是 `$proxy_add_x_forwarded_for`；后者会保留传入的转发链。参见 [Nginx 代理模块说明](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header)。若 Nginx 前面还有 CDN 或其他代理，连接对端就是该前置服务，直到通过 Nginx [真实 IP 模块](https://nginx.org/en/docs/http/ngx_http_realip_module.html)配置为仅从该服务的可信来源地址段接受其客户端 IP 请求头。不要允许任意来源提供替换地址。
+
+认证代理支持真实客户端 IP 需要修改实现：仅接受明确受信任的 Nginx 来源地址提供的转发信息，并将解析后的客户端 IP 同时用于活动记录和 Better Auth 限流。网络还必须防止不可信调用方绕过 Nginx。请求头覆盖、应用侧信任规则和网络隔离三者齐备后，才能将记录地址视为浏览器 IP。
+
+目标服务器的部署者负责验收：通过 HTTPS 验证登录和实际 WebSocket 连接，确认外部机器无法直连认证代理端口，并检查 Nginx 访问日志中的客户端地址。Nginx 日志正确不代表认证代理已支持真实客户端 IP；其记录和限流仍使用上述连接对端地址。
+
 ## 持久化与配置
 
 | 容器路径 | 用途 |

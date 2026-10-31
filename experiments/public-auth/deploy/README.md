@@ -23,6 +23,25 @@ Add the [Nginx example](nginx.conf.example) to the existing TLS site, preserving
 
 Compose publishes only the auth proxy at host `127.0.0.1:3080`; DSH listens only at container `127.0.0.1:3081` with no published port. The default working directory and HOME are both `/home/node`. Enter fish with `docker compose --env-file server.env exec harness fish`; the editor command is `nvim`. DSH's Bash tools continue using Bash.
 
+## Nginx and client IP addresses
+
+The supplied Compose and Nginx files support Nginx on the Docker host or using host networking: browser → HTTPS Nginx → host `127.0.0.1:3080` → authentication proxy. Keep the loopback port binding. A bridge-networked Nginx container needs a separately configured private route to the auth proxy; changing the upstream hostname alone does not expose the host's loopback listener to that container. Do not publish the auth proxy to the public network to solve this connectivity problem.
+
+The authentication proxy sets `trustProxy: false`. Its activity records and Better Auth login limits use the immediate socket peer, which can be a Nginx container or Docker gateway address. Browsers sharing that address share the `LOGIN_ATTEMPTS` budget; increasing the budget changes the shared limit, not the IP attribution. There is no deployment environment variable for trusting Nginx forwarding headers. Changing Nginx alone cannot enable real-client IP records or per-client login limits in the auth proxy.
+
+For a Nginx instance directly facing browsers, the following directives inside the existing `location /` replace client-supplied IP headers with Nginx's observed client address. They can accompany the [supplied example](nginx.conf.example), but the current auth proxy still ignores these headers:
+
+```nginx
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+```
+
+Use replacement rather than `$proxy_add_x_forwarded_for` when a single address is intended; the latter retains an incoming forwarding chain. See the [Nginx proxy module reference](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header). If a CDN or another proxy precedes Nginx, its address is the connection peer until Nginx's [real IP module](https://nginx.org/en/docs/http/ngx_http_realip_module.html) is configured to accept the provider's client-IP header only from that provider's trusted source ranges. Do not trust arbitrary sources to supply replacement addresses.
+
+Real-client IP support in the auth proxy requires an implementation change: accept forwarding information only from explicitly trusted Nginx source addresses, then use the resolved client IP consistently for activity records and Better Auth limits. The network must also prevent untrusted callers from bypassing Nginx. Header replacement, application trust, and network isolation must all be in place before treating the recorded address as the browser IP.
+
+Deployment acceptance belongs to the target-server operator: verify login and a live WebSocket over HTTPS, confirm the auth proxy port is unreachable from an external machine, and check the observed client address in Nginx's access log. A successful Nginx log check does not establish real-client IP support in the auth proxy; its records and limits retain the socket-peer behavior described above.
+
 ## Persistence and configuration
 
 | Container path | Purpose |
