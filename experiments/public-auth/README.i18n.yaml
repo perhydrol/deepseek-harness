@@ -3,8 +3,8 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write experiments/public-auth/README.md
 /single-owner-authentication-proxy-experiment:
-  en: 0f165156038cca78
-  zh: e03d20d500a8541b
+  en: cb2d6e57cc6e7fc5
+  zh: 62e659edcbd9b84f
 /single-owner-authentication-proxy-experiment/linux-and-docker:
   en: 0d537229c9dd1c42
   zh: 2b2cb75f237b6338

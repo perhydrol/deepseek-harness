@@ -28,6 +28,8 @@ Authenticated GET and HEAD responses with status 200 may cache JavaScript and CS
 
 Better Auth limits login attempts by socket IP, defaulting to five attempts per 60 seconds (`--login-attempts`, `--login-window-seconds`), persisting counters in SQLite. When a TLS proxy connects over loopback, clients share that proxy's budget; incoming forwarding headers cannot override it. Upstream mutations are never retried. On upstream 401 the proxy renews credentials for the next request, without replaying the failed request. Failed operations may have unknown outcomes; inspect DSH before repeating a change.
 
+Authentication activity records stay in memory and rotate at UTC ten-minute boundaries; previous records are discarded and restart clears all activity state. Each record contains the observation time, a SHA-256 hash of the session ID, socket-peer IP, and client-supplied user agent, excluding passwords, cookies, and raw session IDs. Successful password login and authenticated requests record a session on first observation or after more than ten minutes of inactivity. Continuous activity, including any open WebSocket, suppresses repeat records across windows; inactivity starts when the last socket closes. Behind a TLS proxy the IP identifies that proxy, not necessarily the browser. Idle tracking state is cleaned every ten minutes.
+
 ## Linux and Docker
 
 For the complete single-container deployment, automated builds, and persistent storage, see the [deployment guide](deploy/README.md). The Dockerfile below builds only the independent authentication proxy.

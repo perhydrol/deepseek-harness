@@ -98,7 +98,7 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     publicOrigin: PUBLIC, stateDirectory: directory, launchUrlFile: file,
     sessionSeconds: 86400, loginAttempts: 4, loginWindowSeconds: 60,
   }
-  let app = await createProxy(config)
+  let app = await createProxy(config, () => 0)
   t.after(async () => {
     releaseExchange?.()
     await app.close()
@@ -108,7 +108,7 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     await new Promise<void>(resolve => upstream.close(() => resolve()))
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
-  const common = { host: 'dsh.example.test', origin: PUBLIC }
+  const common = { host: 'dsh.example.test', origin: PUBLIC, 'user-agent': 'activity-test-browser' }
   assert.equal((await app.inject({ url: '/_auth/login', headers: common })).headers['referrer-policy'], 'same-origin')
   assert.equal((await app.inject({ method: 'POST', url: '/_auth/login', headers: { ...common, origin: 'null' } })).statusCode, 403)
   const login = await app.inject({
@@ -217,7 +217,7 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   })
   assert.equal(await rejected, 401)
   await app.close()
-  app = await createProxy(config)
+  app = await createProxy(config, () => 0)
   assert.equal((await app.inject({ url: '/_auth/session', headers })).statusCode, 200)
   assert.equal((await app.inject({ method: 'POST', url: '/_auth/logout', headers: { host: common.host, cookie: headers.cookie } })).statusCode, 403)
   assert.equal((await app.inject({ method: 'POST', url: '/_auth/logout', headers })).statusCode, 303)

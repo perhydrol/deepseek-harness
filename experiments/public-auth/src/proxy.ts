@@ -8,6 +8,7 @@ import formbody from '@fastify/formbody'
 import proxy from '@fastify/http-proxy'
 import { fromNodeHeaders } from 'better-auth/node'
 import { openAuth, OWNER_EMAIL } from './auth.ts'
+import { ACTIVITY_WINDOW_MS, createActivity } from './activity.ts'
 
 /** Explicit deployment configuration; HTTP is permitted only on loopback origins. */
 export interface ProxyConfig {
@@ -56,8 +57,12 @@ async function exchange(file: string): Promise<{ origin: string; cookie: string;
   }
 }
 
-/** Build an independently installable proxy using DSH's existing token exchange. */
-export async function createProxy(config: ProxyConfig) {
+/** Build an independently installable proxy using DSH's existing token exchange.
+ * @param config Explicit deployment and authentication settings.
+ * @param activityClock Activity reporting clock in Unix milliseconds; authentication uses real time.
+ * @returns Proxy instance whose close operation releases its database, sockets, and activity timer.
+ */
+export async function createProxy(config: ProxyConfig, activityClock: () => number = Date.now) {
   const origin = new URL(config.publicOrigin)
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password
     || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Public origin must have no path or credentials')
@@ -79,11 +84,17 @@ export async function createProxy(config: ProxyConfig) {
   const { auth, database } = openAuth(config)
   const app = Fastify({ logger: false, trustProxy: false, bodyLimit: 4096 })
   const sockets = new Map<string, Set<Socket>>()
+  const activity = createActivity(activityClock)
   await app.register(formbody)
   app.addHook('preClose', async () => {
     for (const group of sockets.values()) for (const socket of group) socket.destroy()
   })
-  app.addHook('onClose', async () => { database.close() })
+  let activityTimer: NodeJS.Timeout | undefined
+  app.addHook('onReady', async () => {
+    activityTimer = setInterval(activity.sweep, ACTIVITY_WINDOW_MS)
+    activityTimer.unref()
+  })
+  app.addHook('onClose', async () => { clearInterval(activityTimer); database.close() })
   const getSession = (request: FastifyRequest) => auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
   const authRequest = async (request: FastifyRequest, endpoint: string, body: object) => {
     const headers = fromNodeHeaders(request.headers)
@@ -111,6 +122,7 @@ export async function createProxy(config: ProxyConfig) {
       return reply.code(401).send('请先在 /_auth/login 登录')
     }
     if (url.pathname === '/connect' || url.searchParams.has('token')) reject(403, 'DSH credentials are private to the proxy')
+    activity.observe(session.session.id, request.ip, request.headers['user-agent'] ?? '')
     if (request.headers.upgrade?.toLowerCase() === 'websocket') {
       const token = session.session.id
       const expiry = session.session.expiresAt.getTime()
@@ -118,6 +130,7 @@ export async function createProxy(config: ProxyConfig) {
       const group = sockets.get(token) ?? new Set<Socket>()
       group.add(socket)
       sockets.set(token, group)
+      activity.connect(token)
       const expire = (): void => {
         const remaining = expiry - Date.now()
         if (remaining <= 0) { socket.destroy(); return }
@@ -127,6 +140,7 @@ export async function createProxy(config: ProxyConfig) {
       let timer: NodeJS.Timeout | undefined
       expire()
       socket.once('close', () => {
+        activity.disconnect(token)
         clearTimeout(timer)
         group.delete(socket)
         if (group.size === 0) sockets.delete(token)
@@ -147,6 +161,10 @@ export async function createProxy(config: ProxyConfig) {
     const response = await authRequest(request, 'sign-in/email', { email: OWNER_EMAIL, password: body.password, rememberMe: true })
     if (!response.ok) return reply.code(response.status).type('text/plain; charset=utf-8')
       .send(response.status === 429 ? '登录尝试过多，请稍后重试' : '密码错误，请返回后重试')
+    const headers = new Headers({ cookie: response.headers.getSetCookie().map(value => value.split(';')[0]).join('; ') })
+    const session = await auth.api.getSession({ headers })
+    if (!session) reject(502, 'Cannot resolve the new authentication session')
+    activity.observe(session.session.id, request.ip, request.headers['user-agent'] ?? '')
     reply.header('set-cookie', response.headers.getSetCookie())
     return reply.redirect('/', 303)
   })
