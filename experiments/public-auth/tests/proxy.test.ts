@@ -227,6 +227,27 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   assert.equal((await app.inject(badLogin)).statusCode, 429)
   const db = await readFile(join(directory, 'auth.sqlite'))
   assert.ok(!db.includes(Buffer.from(PASSWORD)))
+  await t.test('only trusted Nginx peers can select a client login budget', async () => {
+    await app.close()
+    app = await createProxy({ ...config, loginAttempts: 1, trustedProxyIps: '192.0.2.1' }, () => 0)
+    const attempt = (peer: string, ip: string, password = 'wrong') => app.inject({
+      ...badLogin, remoteAddress: peer,
+      headers: { ...badLogin.headers, 'x-forwarded-for': ip, 'x-proxy-client-ip': '203.0.113.99' },
+      payload: new URLSearchParams({ password }).toString(),
+    })
+    assert.equal((await attempt('192.0.2.1', '198.51.100.1')).statusCode, 401)
+    assert.equal((await attempt('192.0.2.1', '198.51.100.1')).statusCode, 429)
+    assert.equal((await attempt('192.0.2.1', '198.51.100.2', PASSWORD)).statusCode, 303)
+    assert.equal((await attempt('192.0.2.2', '198.51.100.3')).statusCode, 401)
+    assert.equal((await attempt('192.0.2.2', '198.51.100.4')).statusCode, 429)
+    for (const ip of ['', '198.51.100.1, 198.51.100.2', 'invalid']) {
+      assert.equal((await attempt('192.0.2.1', ip)).statusCode, 400)
+    }
+    assert.equal((await app.inject({ url: '/_auth/login', remoteAddress: '192.0.2.1', headers: common })).statusCode, 400)
+    assert.equal((await app.inject({ url: '/_auth/login', remoteAddress: '192.0.2.1', headers: {
+      ...common, 'x-forwarded-for': '198.51.100.2', 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'http',
+    } })).statusCode, 200)
+  })
 })
 
 test('initialization refuses to replace an existing owner', { timeout: 10_000 }, async t => {

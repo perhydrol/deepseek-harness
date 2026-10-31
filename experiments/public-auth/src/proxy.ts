@@ -9,6 +9,7 @@ import proxy from '@fastify/http-proxy'
 import { fromNodeHeaders } from 'better-auth/node'
 import { openAuth, OWNER_EMAIL } from './auth.ts'
 import { ACTIVITY_WINDOW_MS, createActivity } from './activity.ts'
+import { createClientIpResolver } from './client-ip.ts'
 
 /** Explicit deployment configuration; HTTP is permitted only on loopback origins. */
 export interface ProxyConfig {
@@ -18,6 +19,8 @@ export interface ProxyConfig {
   sessionSeconds: number
   loginAttempts: number
   loginWindowSeconds: number
+  /** Comma-separated immediate proxy IPs; omitted trusts no forwarding headers. */
+  trustedProxyIps?: string
 }
 
 const LOGIN = `<!doctype html><html lang="zh-CN"><meta charset="utf-8">
@@ -63,6 +66,8 @@ async function exchange(file: string): Promise<{ origin: string; cookie: string;
  * @returns Proxy instance whose close operation releases its database, sockets, and activity timer.
  */
 export async function createProxy(config: ProxyConfig, activityClock: () => number = Date.now) {
+  const resolveClientIp = createClientIpResolver(config.trustedProxyIps)
+  const clientIp = (request: FastifyRequest) => resolveClientIp(request.ip, request.headers['x-forwarded-for'])
   const origin = new URL(config.publicOrigin)
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password
     || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('Public origin must have no path or credentials')
@@ -99,7 +104,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
   const authRequest = async (request: FastifyRequest, endpoint: string, body: object) => {
     const headers = fromNodeHeaders(request.headers)
     headers.set('content-type', 'application/json')
-    headers.set('x-proxy-client-ip', request.ip)
+    headers.set('x-proxy-client-ip', clientIp(request))
     headers.delete('content-length')
     return auth.handler(new Request(`${origin.origin}/_auth/api/${endpoint}`, {
       method: 'POST', headers, body: JSON.stringify(body),
@@ -113,6 +118,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
       reject(403, 'Cross-origin access refused')
     }
     const url = new URL(request.url, origin)
+    clientIp(request)
     if (url.pathname === '/_auth/login') return
     const session = await getSession(request)
     if (!session) {
@@ -122,7 +128,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
       return reply.code(401).send('请先在 /_auth/login 登录')
     }
     if (url.pathname === '/connect' || url.searchParams.has('token')) reject(403, 'DSH credentials are private to the proxy')
-    activity.observe(session.session.id, request.ip, request.headers['user-agent'] ?? '')
+    activity.observe(session.session.id, clientIp(request), request.headers['user-agent'] ?? '')
     if (request.headers.upgrade?.toLowerCase() === 'websocket') {
       const token = session.session.id
       const expiry = session.session.expiresAt.getTime()
@@ -164,7 +170,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     const headers = new Headers({ cookie: response.headers.getSetCookie().map(value => value.split(';')[0]).join('; ') })
     const session = await auth.api.getSession({ headers })
     if (!session) reject(502, 'Cannot resolve the new authentication session')
-    activity.observe(session.session.id, request.ip, request.headers['user-agent'] ?? '')
+    activity.observe(session.session.id, clientIp(request), request.headers['user-agent'] ?? '')
     reply.header('set-cookie', response.headers.getSetCookie())
     return reply.redirect('/', 303)
   })

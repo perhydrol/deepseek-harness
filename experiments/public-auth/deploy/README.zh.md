@@ -27,9 +27,9 @@ Compose 只将认证代理发布到宿主机 `127.0.0.1:3080`；DSH 只监听容
 
 随附的 Compose 与 Nginx 配置支持 Nginx 运行在 Docker 宿主机或使用 host 网络：浏览器 → HTTPS Nginx → 宿主机 `127.0.0.1:3080` → 认证代理。保留回环端口绑定。普通 bridge 网络中的 Nginx 容器需要单独配置通往认证代理的私有网络路径；仅修改上游主机名，不能让该容器访问宿主机的回环监听端口。不要通过将认证代理发布到公网来解决连通问题。
 
-认证代理设置了 `trustProxy: false`。活动记录和 Better Auth 登录限流均使用连接对端地址，可能是 Nginx 容器地址或 Docker 网关地址。共享该地址的浏览器共享 `LOGIN_ATTEMPTS` 额度；提高额度只会改变共享限制，不能恢复客户端 IP。部署配置没有用于信任 Nginx 转发头的环境变量。仅修改 Nginx，不能让认证代理记录真实客户端 IP 或按客户端 IP 分别限流。
+在 `server.env` 中设置 `TRUSTED_PROXY_IPS`，填写 Nginx 连接路径对应的认证代理连接对端地址，多个 IPv4 或 IPv6 地址用逗号分隔。默认留空，不信任任何代理；主机名、CIDR、IPv6 zone 标识和通配符会导致启动失败。对于已提供的 host 网络 Nginx 与 Docker bridge 拓扑，`TRUSTED_PROXY_IPS=172.20.0.1` 是需要在目标服务器核对的示例，不是内置默认值。填写认证代理看到的来源地址，不是浏览器 IP，也不是认证容器 IP。修改后使用下方更新命令重建服务。
 
-对于直接面向浏览器的 Nginx，可在现有 `location /` 中加入以下指令，用 Nginx 观察到的客户端地址覆盖客户端传入的 IP 请求头。它们可以配合[随附示例](nginx.conf.example)使用，但当前认证代理仍忽略这些头：
+在现有 Nginx `location /` 中，用 Nginx 观察到的客户端地址覆盖传入的转发头，与[随附示例](nginx.conf.example)一致：
 
 ```nginx
 proxy_set_header X-Forwarded-For $remote_addr;
@@ -38,9 +38,9 @@ proxy_set_header X-Real-IP $remote_addr;
 
 需要单一地址时使用覆盖方式，而不是 `$proxy_add_x_forwarded_for`；后者会保留传入的转发链。参见 [Nginx 代理模块说明](https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_set_header)。若 Nginx 前面还有 CDN 或其他代理，连接对端就是该前置服务，直到通过 Nginx [真实 IP 模块](https://nginx.org/en/docs/http/ngx_http_realip_module.html)配置为仅从该服务的可信来源地址段接受其客户端 IP 请求头。不要允许任意来源提供替换地址。
 
-认证代理支持真实客户端 IP 需要修改实现：仅接受明确受信任的 Nginx 来源地址提供的转发信息，并将解析后的客户端 IP 同时用于活动记录和 Better Auth 限流。网络还必须防止不可信调用方绕过 Nginx。请求头覆盖、应用侧信任规则和网络隔离三者齐备后，才能将记录地址视为浏览器 IP。
+认证代理仅接受已配置对端提供的单个有效 `X-Forwarded-For` IP，同时用于活动记录和 Better Auth 限流。可信对端缺少该头、值无效或包含地址链时返回 HTTP 400；其他对端的转发头被忽略，使用连接对端 IP。Fastify 保持 `trustProxy: false`，转发的 Host 和协议不会改变 Host 检查或已配置的公网来源。限制后端访问：能经同一可信 Docker 网关直连后端的进程也能冒充代理。保留回环端口绑定，并限制不可信的本地进程和容器。
 
-目标服务器的部署者负责验收：通过 HTTPS 验证登录和实际 WebSocket 连接，确认外部机器无法直连认证代理端口，并检查 Nginx 访问日志中的客户端地址。Nginx 日志正确不代表认证代理已支持真实客户端 IP；其记录和限流仍使用上述连接对端地址。
+目标服务器的部署者需要检查并重新加载 Nginx 配置，使用更新后的镜像和环境变量重建认证容器，再通过 HTTPS 验证登录和实际 WebSocket 连接。确认外部无法直连后端，并检查 Nginx 日志中的客户端地址。Better Auth 默认按 IPv6 /64 聚合登录限流，活动记录仍保留解析后的 IP。使用两个 IPv4 地址或属于不同 /64 前缀的 IPv6 地址验证登录额度独立，同时确认通过 Nginx 发送伪造的 `X-Forwarded-For` 不能切换额度。本地测试覆盖地址解析和登录限流；目标 Docker 网络与 TLS 部署仍需完成此验收。
 
 ## 持久化与配置
 
