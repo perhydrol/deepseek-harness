@@ -31,7 +31,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Resolve tags
         id: tags
-        run: echo "short=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+        run: echo "short=$(git rev-parse --short=7 HEAD)" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: experiments/public-auth
@@ -51,7 +51,7 @@ jobs:
       - name: Publish validated image
         if: github.ref == 'refs/heads/master'
         run: |
-          docker tag "$IMAGE:test" "$IMAGE:sha-${{ steps.tags.outputs.short }}"
+          docker tag "$IMAGE:test" "$IMAGE:${{ steps.tags.outputs.short }}"
           docker tag "$IMAGE:test" "$IMAGE:latest"
-          docker push "$IMAGE:sha-${{ steps.tags.outputs.short }}"
+          docker push "$IMAGE:${{ steps.tags.outputs.short }}"
           docker push "$IMAGE:latest"
