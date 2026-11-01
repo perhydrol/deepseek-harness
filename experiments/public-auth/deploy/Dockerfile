@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:1
-FROM ghcr.io/astral-sh/uv:0.13.4 AS uv
+# Track the upstream latest uv image; rebuilds pick up new releases.
+FROM ghcr.io/astral-sh/uv:latest AS uv
 FROM node:24-trixie-slim AS proxy-build
 RUN npm install --global pnpm@11.25.0 && npm cache clean --force
 WORKDIR /app
