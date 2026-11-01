@@ -58,7 +58,7 @@ The named volume inherits ownership from the image; a bind mount must contain th
 
 To replace a disposable deployment using the four-volume layout, run `docker compose --env-file server.env down -v` with its old Compose file before replacing the file and image. This deletes all its named-volume data, including projects, credentials, and login sessions. Then follow the first-deployment initialization steps with the new Compose file. Existing data is not migrated automatically.
 
-`PUBLIC_ORIGIN` is required and must be an HTTPS origin without a path; loopback HTTP is allowed for local trials. `DEEPSEEK_API_KEY` is optional; model credentials can also be configured in DSH. `SESSION_DAYS` defaults to 30, `LOGIN_ATTEMPTS` to 5, and `LOGIN_WINDOW_SECONDS` to 60; each must be a positive integer, and changes require container recreation. See the [proxy reference](../README.md) for session and failure recovery behavior.
+`PUBLIC_ORIGIN` is required and must be an HTTPS origin without a path; loopback HTTP is allowed for local trials. `DEEPSEEK_API_KEY` is optional; model credentials can also be configured in DSH. `SESSION_DAYS` defaults to 30, `LOGIN_ATTEMPTS` to 5, and `LOGIN_WINDOW_SECONDS` to 60; each must be a positive integer, and changes require container recreation. `SESSION_CACHE_SECONDS` defaults to 60 and must be a non-negative integer; `0` disables the in-process validated-session cache. See the [proxy reference](../README.md) for session and failure recovery behavior.
 
 ## Build and update
 

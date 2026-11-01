@@ -6,7 +6,9 @@ import { createServer } from 'node:http'
 import type { IncomingHttpHeaders } from 'node:http'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { DatabaseSync } from 'node:sqlite'
 import { test } from 'node:test'
+import { setTimeout } from 'node:timers/promises'
 import { WebSocket, WebSocketServer } from 'ws'
 import { createProxy } from '../src/proxy.ts'
 import { initialize } from '../src/auth.ts'
@@ -126,6 +128,16 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   assert.match(credential, /^__Secure-dsh-proxy=/)
   assert.ok(!credential.includes('private-token') && !credential.includes('private-cookie'))
   const headers = { ...common, cookie: credential }
+  await t.test('duplicate session cookies keep Better Auth first-wins semantics', async () => {
+    const separator = credential.indexOf('=')
+    const forged = `${credential.slice(0, separator)}=forged-session-cookie`
+    assert.equal((await app.inject({ url: '/_auth/session', headers })).statusCode, 200)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: { ...headers, cookie: `${credential}; ${forged}` } })).statusCode, 200)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: { ...headers, cookie: forged } })).statusCode, 401)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: { ...headers, cookie: `${forged}; ${credential}` } })).statusCode, 401)
+  })
+  const forged = await app.inject({ url: '/api/session', headers: { ...common, cookie: '__Secure-dsh-proxy=forged' } })
+  assert.equal(forged.statusCode, 401)
   for (const path of ['/', '/api/settings/mutate', '/stream']) {
     assert.equal((await app.inject({ url: path, headers: common })).statusCode, 401)
   }
@@ -227,6 +239,53 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   assert.equal((await app.inject(badLogin)).statusCode, 429)
   const db = await readFile(join(directory, 'auth.sqlite'))
   assert.ok(!db.includes(Buffer.from(PASSWORD)))
+  await t.test('validated sessions expire even while cached', async () => {
+    await app.close()
+    app = await createProxy({ ...config, sessionSeconds: 2, loginAttempts: 1_000 }, () => 0)
+    const login = await app.inject({
+      method: 'POST', url: '/_auth/login', headers: { ...common, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({ password: PASSWORD }).toString(),
+    })
+    assert.equal(login.statusCode, 303)
+    const cookies = login.headers['set-cookie']
+    const credential = String(Array.isArray(cookies) ? cookies.find(value => value.includes('dsh-proxy=')) : cookies).split(';')[0]!
+    const sessionHeaders = { ...common, cookie: credential }
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 200)
+    await setTimeout(2_100)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 401)
+  })
+  const loginFor = async (overrides: { sessionCacheSeconds: number }) => {
+    await app.close()
+    app = await createProxy({ ...config, loginAttempts: 1_000, ...overrides }, () => 0)
+    const login = await app.inject({
+      method: 'POST', url: '/_auth/login', headers: { ...common, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({ password: PASSWORD }).toString(),
+    })
+    assert.equal(login.statusCode, 303)
+    const cookies = login.headers['set-cookie']
+    const credential = String(Array.isArray(cookies) ? cookies.find(value => value.includes('dsh-proxy=')) : cookies).split(';')[0]!
+    const value = credential.slice(credential.indexOf('=') + 1)
+    const token = value.slice(0, value.lastIndexOf('.'))
+    return { sessionHeaders: { ...common, cookie: credential }, token }
+  }
+  const deleteSession = (token: string) => {
+    const database = new DatabaseSync(join(directory, 'auth.sqlite'))
+    try { database.prepare('DELETE FROM session WHERE token = ?').run(token) } finally { database.close() }
+  }
+  await t.test('cache lifetime bounds a session removed from SQLite', async () => {
+    const { sessionHeaders, token } = await loginFor({ sessionCacheSeconds: 1 })
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 200)
+    deleteSession(token)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 200)
+    await setTimeout(1_100)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 401)
+  })
+  await t.test('session cache can be disabled', async () => {
+    const { sessionHeaders, token } = await loginFor({ sessionCacheSeconds: 0 })
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 200)
+    deleteSession(token)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 401)
+  })
   await t.test('only trusted Nginx peers can select a client login budget', async () => {
     await app.close()
     app = await createProxy({ ...config, loginAttempts: 1, trustedProxyIps: '192.0.2.1' }, () => 0)
@@ -237,7 +296,8 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     })
     assert.equal((await attempt('192.0.2.1', '198.51.100.1')).statusCode, 401)
     assert.equal((await attempt('192.0.2.1', '198.51.100.1')).statusCode, 429)
-    assert.equal((await attempt('192.0.2.1', '198.51.100.2', PASSWORD)).statusCode, 303)
+    const success = await attempt('192.0.2.1', '198.51.100.2', PASSWORD)
+    assert.equal(success.statusCode, 303)
     assert.equal((await attempt('192.0.2.2', '198.51.100.3')).statusCode, 401)
     assert.equal((await attempt('192.0.2.2', '198.51.100.4')).statusCode, 429)
     for (const ip of ['', '198.51.100.1, 198.51.100.2', 'invalid']) {
@@ -247,7 +307,25 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     assert.equal((await app.inject({ url: '/_auth/login', remoteAddress: '192.0.2.1', headers: {
       ...common, 'x-forwarded-for': '198.51.100.2', 'x-forwarded-host': 'evil.test', 'x-forwarded-proto': 'http',
     } })).statusCode, 200)
+    // The decoy name is not the session cookie; logout still invalidates the cached secure pair.
+    const cookies = success.headers['set-cookie']
+    const sessionCredential = String(Array.isArray(cookies) ? cookies.find(value => value.includes('dsh-proxy=')) : cookies).split(';')[0]!
+    const sessionHeaders = { host: common.host, origin: PUBLIC, cookie: sessionCredential }
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 200)
+    assert.equal((await app.inject({
+      method: 'POST', url: '/_auth/logout', headers: { ...sessionHeaders, cookie: `${sessionCredential}; dsh-proxy=decoy` },
+    })).statusCode, 303)
+    assert.equal((await app.inject({ url: '/_auth/session', headers: sessionHeaders })).statusCode, 401)
   })
+})
+
+test('invalid session cache lifetime fails before startup', async () => {
+  const base = {
+    publicOrigin: PUBLIC, stateDirectory: '/nonexistent', launchUrlFile: '/nonexistent',
+    sessionSeconds: 1, loginAttempts: 1, loginWindowSeconds: 1,
+  }
+  await assert.rejects(createProxy({ ...base, sessionCacheSeconds: -1 }), /Session cache lifetime/u)
+  await assert.rejects(createProxy({ ...base, sessionCacheSeconds: 1.5 }), /Session cache lifetime/u)
 })
 
 test('initialization refuses to replace an existing owner', { timeout: 10_000 }, async t => {

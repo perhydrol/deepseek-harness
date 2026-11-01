@@ -58,7 +58,7 @@ Compose 仅在 `/data` 挂载一个命名卷。`/home/node`、`/var/lib/dsh`、`
 
 替换使用四卷布局且数据可丢弃的部署时，先用旧 Compose 文件执行 `docker compose --env-file server.env down -v`，再替换配置和镜像。这会删除该部署所有命名卷数据，包括项目、凭据和登录会话。随后使用新 Compose 文件，按首次部署步骤重新初始化。已有数据不会自动迁移。
 
-`PUBLIC_ORIGIN` 必填，必须为不带路径的 HTTPS 来源；本地试用允许回环 HTTP。`DEEPSEEK_API_KEY` 可选，也可在 DSH 中配置模型凭据。`SESSION_DAYS` 默认 30，`LOGIN_ATTEMPTS` 默认 5，`LOGIN_WINDOW_SECONDS` 默认 60；均需正整数，修改后重建容器。会话与错误恢复行为见[代理说明](../README.zh.md)。
+`PUBLIC_ORIGIN` 必填，必须为不带路径的 HTTPS 来源；本地试用允许回环 HTTP。`DEEPSEEK_API_KEY` 可选，也可在 DSH 中配置模型凭据。`SESSION_DAYS` 默认 30，`LOGIN_ATTEMPTS` 默认 5，`LOGIN_WINDOW_SECONDS` 默认 60；均需正整数，修改后重建容器。`SESSION_CACHE_SECONDS` 默认 60，需非负整数；`0` 禁用进程内已验证会话缓存。会话与错误恢复行为见[代理说明](../README.zh.md)。
 
 ## 构建和更新
 

@@ -56,10 +56,15 @@ try {
       if (Date.now() >= deadline) throw new Error('DSH readiness timed out; inspect the harness logs')
       await setTimeout(500)
     }
+    const sessionCacheSetting = process.env.SESSION_CACHE_SECONDS
+    if (sessionCacheSetting !== undefined && sessionCacheSetting.trim() === '') {
+      throw new Error('SESSION_CACHE_SECONDS must be a non-negative integer')
+    }
     const app = await createProxy({ publicOrigin, launchUrlFile: file,
       trustedProxyIps: process.env.TRUSTED_PROXY_IPS ?? '',
       stateDirectory: '/var/lib/dsh-auth', sessionSeconds: Number(process.env.SESSION_DAYS ?? '30') * 86400,
-      loginAttempts: Number(process.env.LOGIN_ATTEMPTS ?? '5'), loginWindowSeconds: Number(process.env.LOGIN_WINDOW_SECONDS ?? '60') })
+      loginAttempts: Number(process.env.LOGIN_ATTEMPTS ?? '5'), loginWindowSeconds: Number(process.env.LOGIN_WINDOW_SECONDS ?? '60'),
+      sessionCacheSeconds: Number(sessionCacheSetting ?? '60') })
     await app.listen({ host: '0.0.0.0', port: 8080 })
     console.log('Authentication proxy ready on port 8080')
     for (const signal of ['SIGTERM', 'SIGINT'] as const) process.once(signal, () => {

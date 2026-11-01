@@ -17,6 +17,7 @@ const { values, positionals } = parseArgs({
     'session-days': { type: 'string', default: '30' },
     'login-attempts': { type: 'string', default: '5' },
     'login-window-seconds': { type: 'string', default: '60' },
+    'session-cache-seconds': { type: 'string', default: '60' },
     'trusted-proxy-ips': { type: 'string', default: '' },
   },
 })
@@ -31,6 +32,7 @@ try {
       publicOrigin: values.origin, stateDirectory: values.state, launchUrlFile: values['launch-url-file'],
       sessionSeconds: Number(values['session-days']) * 86400,
       loginAttempts: Number(values['login-attempts']), loginWindowSeconds: Number(values['login-window-seconds']),
+      sessionCacheSeconds: Number(values['session-cache-seconds']),
       trustedProxyIps: values['trusted-proxy-ips'],
     })
     const port = Number(values.port)

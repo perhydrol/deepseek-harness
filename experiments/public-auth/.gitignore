@@ -1,5 +1,7 @@
 node_modules/
 dist/
+bench/results/
+bench/profiles/
 state/
 launch-url.txt
 *.env
