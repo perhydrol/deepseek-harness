@@ -7,7 +7,7 @@ import type { FastifyRequest } from 'fastify'
 import formbody from '@fastify/formbody'
 import proxy from '@fastify/http-proxy'
 import { fromNodeHeaders } from 'better-auth/node'
-import { openAuth, OWNER_EMAIL, sessionCookieName } from './auth.ts'
+import { openAuth, OWNER_EMAIL, sessionCookieNames } from './auth.ts'
 import { ACTIVITY_WINDOW_MS, createActivity } from './activity.ts'
 import { createClientIpResolver } from './client-ip.ts'
 
@@ -129,7 +129,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     activityTimer.unref()
   })
   app.addHook('onClose', async () => { clearInterval(activityTimer); database.close() })
-  const sessionCookie = sessionCookieName(config.publicOrigin)
+  const sessionCookie = sessionCookieNames(config.publicOrigin).effective
   const sessionCacheMs = sessionCacheSeconds * 1_000
   const maxCachedSessions = 256
   const cachedSessions = new Map<string, { id: string; expiresAt: number; validatedAt: number }>()
@@ -162,6 +162,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     }
   }
   const forgetSession = (key: string | undefined, id: string | undefined): void => {
+    if (sessionCacheMs === 0) return
     if (key !== undefined) cachedSessions.delete(key)
     if (id === undefined) return
     // A token can be cached under more than one raw spelling; clear every entry for this session.
@@ -176,7 +177,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
   }
   const getSession = async (request: FastifyRequest): Promise<ActiveSession | null> => {
     const key = readSessionCookie(request.headers, sessionCookie)
-    // With cookie-cache disabled, no session cookie means Better Auth resolves no session.
+    // No session cookie can authenticate, so skipping the lookup matches Better Auth's null result.
     if (key === undefined) return null
     const cached = cachedSession(key)
     if (cached !== undefined) return { session: { id: cached.id, expiresAt: new Date(cached.expiresAt) } }

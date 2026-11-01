@@ -18,18 +18,16 @@ export interface AuthConfig {
   loginWindowSeconds: number
 }
 
-/** Configured session cookie base name; secure origins receive the `__Secure-` prefix. */
-function sessionCookieBase(publicOrigin: string): string {
-  return publicOrigin.startsWith('https:') ? 'dsh-proxy' : 'dsh-proxy-local'
-}
-
-/** Effective session cookie name; secure origins receive the `__Secure-` prefix.
+/** Session cookie names for a public origin.
+ * Better Auth stores the configured base and prefixes the effective name with
+ * `__Secure-` when the origin uses HTTPS.
  * @param publicOrigin Configured origin that selects secure cookie naming.
- * @returns Cookie name Better Auth reads the signed session token from.
+ * @returns The configured base name and the name Better Auth reads.
  */
-export function sessionCookieName(publicOrigin: string): string {
-  const base = sessionCookieBase(publicOrigin)
-  return publicOrigin.startsWith('https:') ? `__Secure-${base}` : base
+export function sessionCookieNames(publicOrigin: string): { base: string; effective: string } {
+  const secure = publicOrigin.startsWith('https:')
+  const base = secure ? 'dsh-proxy' : 'dsh-proxy-local'
+  return { base, effective: secure ? `__Secure-${base}` : base }
 }
 
 /** Open persisted Better Auth state with public registration disabled by default. */
@@ -55,7 +53,7 @@ export function openAuth(config: AuthConfig, initialize = false) {
     advanced: {
       useSecureCookies: config.publicOrigin.startsWith('https:'),
       defaultCookieAttributes: { httpOnly: true, sameSite: 'strict', path: '/' },
-      cookies: { session_token: { name: sessionCookieBase(config.publicOrigin) } },
+      cookies: { session_token: { name: sessionCookieNames(config.publicOrigin).base } },
       ipAddress: { ipAddressHeaders: ['x-proxy-client-ip'] },
       database: { validateSchema: !initialize },
     },
