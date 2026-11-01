@@ -7,7 +7,7 @@ import type { FastifyRequest } from 'fastify'
 import formbody from '@fastify/formbody'
 import proxy from '@fastify/http-proxy'
 import { fromNodeHeaders } from 'better-auth/node'
-import { openAuth, OWNER_EMAIL } from './auth.ts'
+import { openAuth, OWNER_EMAIL, sessionCookieName } from './auth.ts'
 import { ACTIVITY_WINDOW_MS, createActivity } from './activity.ts'
 import { createClientIpResolver } from './client-ip.ts'
 
@@ -21,6 +21,31 @@ export interface ProxyConfig {
   loginWindowSeconds: number
   /** Comma-separated immediate proxy IPs; omitted trusts no forwarding headers. */
   trustedProxyIps?: string
+  /** Seconds a validated session may be reused in process memory; 0 disables the cache. */
+  sessionCacheSeconds?: number
+}
+
+/** Minimal authenticated session data the proxy consumes. */
+interface ActiveSession {
+  session: { id: string; expiresAt: Date }
+}
+
+/** Locate the signed session cookie without verifying it.
+ * @param headers Incoming request headers.
+ * @param name Effective session cookie name.
+ * @returns The pair Better Auth reads, or undefined when absent; the first duplicate wins.
+ */
+function readSessionCookie(headers: IncomingHttpHeaders, name: string): string | undefined {
+  const header = headers.cookie
+  if (header === undefined) return undefined
+  for (const part of header.split(';')) {
+    const trimmed = part.trim()
+    const separator = trimmed.indexOf('=')
+    if (separator > 0 && trimmed.slice(0, separator).trim() === name) {
+      return `${name}=${trimmed.slice(separator + 1).trim()}`
+    }
+  }
+  return undefined
 }
 
 const LOGIN = `<!doctype html><html lang="zh-CN"><meta charset="utf-8">
@@ -77,6 +102,10 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
   for (const value of [config.sessionSeconds, config.loginAttempts, config.loginWindowSeconds]) {
     if (!Number.isSafeInteger(value) || value <= 0) throw new Error('Session and login limits must be positive integers')
   }
+  const sessionCacheSeconds = config.sessionCacheSeconds ?? 60
+  if (!Number.isSafeInteger(sessionCacheSeconds) || sessionCacheSeconds < 0) {
+    throw new Error('Session cache lifetime must be a non-negative integer')
+  }
   let upstream = await exchange(config.launchUrlFile)
   let renewal: Promise<void> | undefined
   const renew = (): Promise<void> => {
@@ -100,7 +129,62 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     activityTimer.unref()
   })
   app.addHook('onClose', async () => { clearInterval(activityTimer); database.close() })
-  const getSession = (request: FastifyRequest) => auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
+  const sessionCookie = sessionCookieName(config.publicOrigin)
+  const sessionCacheMs = sessionCacheSeconds * 1_000
+  const maxCachedSessions = 256
+  const cachedSessions = new Map<string, { id: string; expiresAt: number; validatedAt: number }>()
+  const revokedSessions = new Map<string, number>()
+  const cachedSession = (key: string): { id: string; expiresAt: number } | undefined => {
+    const entry = cachedSessions.get(key)
+    if (entry === undefined) return undefined
+    const time = Date.now()
+    if (entry.expiresAt <= time || entry.validatedAt + sessionCacheMs <= time) {
+      cachedSessions.delete(key)
+      return undefined
+    }
+    // Refresh insertion order so eviction removes the least recently used session.
+    cachedSessions.delete(key)
+    cachedSessions.set(key, entry)
+    return entry
+  }
+  const rememberSession = (key: string, id: string, expiresAt: number): void => {
+    if (sessionCacheMs === 0) return
+    const revokedAt = revokedSessions.get(id)
+    if (revokedAt !== undefined) {
+      if (Date.now() - revokedAt < sessionCacheMs) return
+      revokedSessions.delete(id)
+    }
+    cachedSessions.delete(key)
+    cachedSessions.set(key, { id, expiresAt, validatedAt: Date.now() })
+    if (cachedSessions.size > maxCachedSessions) {
+      const oldest = cachedSessions.keys().next()
+      if (typeof oldest.value === 'string') cachedSessions.delete(oldest.value)
+    }
+  }
+  const forgetSession = (key: string | undefined, id: string | undefined): void => {
+    if (key !== undefined) cachedSessions.delete(key)
+    if (id === undefined) return
+    // A token can be cached under more than one raw spelling; clear every entry for this session.
+    for (const [cachedKey, entry] of cachedSessions) if (entry.id === id) cachedSessions.delete(cachedKey)
+    // A concurrent validation may finish after sign-out; refuse to cache the revoked session again.
+    revokedSessions.delete(id)
+    revokedSessions.set(id, Date.now())
+    if (revokedSessions.size > maxCachedSessions) {
+      const oldest = revokedSessions.keys().next()
+      if (typeof oldest.value === 'string') revokedSessions.delete(oldest.value)
+    }
+  }
+  const getSession = async (request: FastifyRequest): Promise<ActiveSession | null> => {
+    const key = readSessionCookie(request.headers, sessionCookie)
+    // With cookie-cache disabled, no session cookie means Better Auth resolves no session.
+    if (key === undefined) return null
+    const cached = cachedSession(key)
+    if (cached !== undefined) return { session: { id: cached.id, expiresAt: new Date(cached.expiresAt) } }
+    const session = await auth.api.getSession({ headers: fromNodeHeaders(request.headers) })
+    if (!session) return null
+    rememberSession(key, session.session.id, session.session.expiresAt.getTime())
+    return session
+  }
   const authRequest = async (request: FastifyRequest, endpoint: string, body: object) => {
     const headers = fromNodeHeaders(request.headers)
     headers.set('content-type', 'application/json')
@@ -118,7 +202,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
       reject(403, 'Cross-origin access refused')
     }
     const url = new URL(request.url, origin)
-    clientIp(request)
+    const ip = clientIp(request)
     if (url.pathname === '/_auth/login') return
     const session = await getSession(request)
     if (!session) {
@@ -128,7 +212,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
       return reply.code(401).send('请先在 /_auth/login 登录')
     }
     if (url.pathname === '/connect' || url.searchParams.has('token')) reject(403, 'DSH credentials are private to the proxy')
-    activity.observe(session.session.id, clientIp(request), request.headers['user-agent'] ?? '')
+    activity.observe(session.session.id, ip, request.headers['user-agent'] ?? '')
     if (request.headers.upgrade?.toLowerCase() === 'websocket') {
       const token = session.session.id
       const expiry = session.session.expiresAt.getTime()
@@ -167,19 +251,25 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     const response = await authRequest(request, 'sign-in/email', { email: OWNER_EMAIL, password: body.password, rememberMe: true })
     if (!response.ok) return reply.code(response.status).type('text/plain; charset=utf-8')
       .send(response.status === 429 ? '登录尝试过多，请稍后重试' : '密码错误，请返回后重试')
-    const headers = new Headers({ cookie: response.headers.getSetCookie().map(value => value.split(';')[0]).join('; ') })
+    const setCookies = response.headers.getSetCookie()
+    const cookieHeader = setCookies.map(value => value.split(';')[0]).join('; ')
+    const headers = new Headers({ cookie: cookieHeader })
     const session = await auth.api.getSession({ headers })
     if (!session) reject(502, 'Cannot resolve the new authentication session')
+    const loginKey = readSessionCookie({ cookie: cookieHeader }, sessionCookie)
+    if (loginKey !== undefined) rememberSession(loginKey, session.session.id, session.session.expiresAt.getTime())
     activity.observe(session.session.id, clientIp(request), request.headers['user-agent'] ?? '')
-    reply.header('set-cookie', response.headers.getSetCookie())
+    reply.header('set-cookie', setCookies)
     return reply.redirect('/', 303)
   })
   app.get('/_auth/session', async () => ({ authenticated: true }))
   app.post('/_auth/logout', async (request, reply) => {
     if (request.headers.origin !== origin.origin) reject(403, 'Origin required')
+    const key = readSessionCookie(request.headers, sessionCookie)
     const session = await getSession(request)
     const response = await authRequest(request, 'sign-out', {})
     if (!response.ok) reject(response.status, 'Sign out failed')
+    forgetSession(key, session?.session.id)
     for (const socket of sockets.get(session?.session.id ?? '') ?? []) socket.destroy()
     return reply.header('set-cookie', response.headers.getSetCookie()).redirect('/_auth/login', 303)
   })
