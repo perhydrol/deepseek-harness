@@ -13,7 +13,7 @@ COPY tests ./tests
 RUN pnpm check && pnpm test && pnpm build && pnpm prune --prod
 
 FROM node:24-trixie-slim
-ARG DSH_VERSION=0.2.1-rc.5
+ARG DSH_VERSION=0.2.2-rc.1
 COPY --from=uv /uv /uvx /usr/local/bin/
 # Debian security updates are selected when rebuilding the image.
 # hadolint ignore=DL3008
