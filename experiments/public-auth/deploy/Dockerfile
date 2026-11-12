@@ -26,6 +26,9 @@ RUN npm install --omit=dev --save-exact "@deepseek-ai/dsh@${DSH_VERSION}" \
 COPY --from=proxy-build /app/package.json /opt/auth/package.json
 COPY --from=proxy-build /app/node_modules /opt/auth/node_modules
 COPY --from=proxy-build /app/dist /opt/auth/dist
+# Optional browser cache plugin; enable once per profile with
+# `sh /opt/static-cache/enable.sh` and restart the container.
+COPY static-cache /opt/static-cache
 COPY deploy/supervisord.conf /etc/supervisor/dsh.conf
 ENV NODE_ENV=production HOME=/home/node DSH_HOME=/var/lib/dsh \
     UV_CACHE_DIR=/var/lib/uv/cache UV_PYTHON_INSTALL_DIR=/var/lib/uv/python/managed \

@@ -1,0 +1,34 @@
+# Bilingual-pair consistency record for README.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write experiments/public-auth/static-cache/README.md
+/dsh-static-cache:
+  en: 1d9e405793c67d5d
+  zh: 2621f85fe4ee4240
+/dsh-static-cache/what-it-caches:
+  en: 2bfdfac26c2e0522
+  zh: 39b26c08d877cae6
+/dsh-static-cache/install-container-deployment:
+  en: 7685f6d863d40bf3
+  zh: 26a051aabab518b9
+/dsh-static-cache/configuration:
+  en: ba7ab4183ffe723f
+  zh: ba8806b61ce153d4
+/dsh-static-cache/invalidation:
+  en: 59e62c8b3a9eddbc
+  zh: 4dd7a3554275e481
+/dsh-static-cache/verify:
+  en: f0275f832bcb0024
+  zh: 08fa8f24c1fce5d8
+/dsh-static-cache/remove:
+  en: 95b79ae790192fbd
+  zh: c81a8b64130acb2e
+/dsh-static-cache/security-notes:
+  en: 0c407d26fee8a08b
+  zh: 33c92814c29f23b2
+/dsh-static-cache/limitations:
+  en: 19ed10ccf2ba493b
+  zh: 25a75703b998fac1
+/dsh-static-cache/tests:
+  en: c3d45dab303a4194
+  zh: be0751f98866261d
