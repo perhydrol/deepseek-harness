@@ -55,7 +55,7 @@ test('registers the worker route with service-worker headers', () => {
   assert.equal(response.headers['service-worker-allowed'], '/')
   assert.equal(response.headers['cache-control'], 'no-cache')
   assert.match(response.body, /dsh-static-v2/)
-  assert.ok(response.body.includes('"prefixes":["/assets/","/plugins/"]'))
+  assert.ok(response.body.includes('"prefixes":["/assets/","/plugins/","/font-replacement/"]'))
   assert.ok(!response.body.includes('dsh-static-cache:config'))
 })
 

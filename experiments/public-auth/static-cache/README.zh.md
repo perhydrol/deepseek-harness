@@ -4,7 +4,7 @@
 
 以树外 profile 插件安装的 DSH Web 静态资源浏览器缓存。不改动部署的鉴权：Service Worker 只保存已登录页面用会话 Cookie 实际取回的字节。
 
-写入缓存要求认证代理提供的 `X-DSH-Upstream-Cache-Control` 声明正数 `max-age`，且不含 `no-store` 或 `no-cache`；缺失策略时拒绝缓存。每次缓存命中均通过网络请求 `/_auth/session` 校验会话。注销请求即使不发生页面导航也会清理缓存。Worker 激活时删除旧缓存代际。字体替换插件需在 `prefixes` 中加入 `/font-replacement/`：哈希命名的 WOFF2 可以缓存，声明 `no-cache` 的样式表继续走网络。
+写入缓存要求认证代理提供的 `X-DSH-Upstream-Cache-Control` 声明正数 `max-age`，且不含 `no-store` 或 `no-cache`；缺失策略时拒绝缓存。每次缓存命中均通过网络请求 `/_auth/session` 校验会话。注销请求即使不发生页面导航也会清理缓存。Worker 激活时删除旧缓存代际。默认 `prefixes` 已包含字体替换插件的 `/font-replacement/`：哈希命名的 WOFF2 可以缓存，声明 `no-cache` 的样式表继续走网络。
 
 ## 缓存范围
 
@@ -43,7 +43,7 @@ docker compose --env-file server.env restart harness
 |---|---|---|
 | `route` | `/__dsh-static-cache/sw.js` | 提供 worker 脚本的路径 |
 | `scope` | `/` | worker 作用域；每个前缀都必须位于其中 |
-| `prefixes` | `["/assets/", "/plugins/"]` | 可缓存路径前缀 |
+| `prefixes` | `["/assets/", "/plugins/", "/font-replacement/"]` | 可缓存路径前缀 |
 | `exclude` | `["/plugins/events"]` | 始终走网络的确切路径 |
 | `prime` | `true` | 页面加载后抓取并保存当前页资源 |
 | `concurrency` | `4` | 并行预取请求数 |

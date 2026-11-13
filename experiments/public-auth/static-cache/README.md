@@ -7,7 +7,7 @@ profile plugin. It keeps the deployment's authentication untouched: the
 service worker only stores bytes that an authenticated page already fetched
 with its session cookie.
 
-Storage requires `X-DSH-Upstream-Cache-Control` from the authentication proxy to declare a positive `max-age`, without `no-store` or `no-cache`; missing policy is denied. Every cache hit checks `/_auth/session` over the network. Logout requests purge the cache even without page navigation. Old cache generations are removed on worker activation. For the font replacement plugin, add `/font-replacement/` to `prefixes`: its hashed WOFF2 files qualify, while its `no-cache` stylesheet stays on the network.
+Storage requires `X-DSH-Upstream-Cache-Control` from the authentication proxy to declare a positive `max-age`, without `no-store` or `no-cache`; missing policy is denied. Every cache hit checks `/_auth/session` over the network. Logout requests purge the cache even without page navigation. Old cache generations are removed on worker activation. The default `prefixes` include `/font-replacement/` for the font replacement plugin: its hashed WOFF2 files qualify, while its `no-cache` stylesheet stays on the network.
 
 ## What it caches
 
@@ -52,7 +52,7 @@ The row's `config` accepts every field below; all are optional.
 |---|---|---|
 | `route` | `/__dsh-static-cache/sw.js` | Path serving the worker script |
 | `scope` | `/` | Worker scope; every prefix must live inside it |
-| `prefixes` | `["/assets/", "/plugins/"]` | Cacheable path prefixes |
+| `prefixes` | `["/assets/", "/plugins/", "/font-replacement/"]` | Cacheable path prefixes |
 | `exclude` | `["/plugins/events"]` | Exact paths that always hit the network |
 | `prime` | `true` | Fetch and store the current page's assets after load |
 | `concurrency` | `4` | Parallel prefetch requests |

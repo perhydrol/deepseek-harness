@@ -7,7 +7,7 @@ const CONFIG_MARKER = '/* dsh-static-cache:config */null'
 
 /** Policy the Host would bake into the served worker. */
 export const DEFAULT_WORKER_CONFIG = Object.freeze({
-  prefixes: ['/assets/', '/plugins/'],
+  prefixes: ['/assets/', '/plugins/', '/font-replacement/'],
   exclude: ['/plugins/events'],
   concurrency: 4,
   maxCacheBytes: 64 * 1024 * 1024,

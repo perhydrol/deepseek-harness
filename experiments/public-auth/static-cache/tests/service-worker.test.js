@@ -381,3 +381,15 @@ test('purges opaque manual-redirect logout responses', async () => {
   await worker.fetchEvent(new Request('https://dsh.test/_auth/logout', { method: 'POST', redirect: 'manual' }))
   assert.equal(assetKeys(worker).length, 0)
 })
+
+
+test('caches font fragments but keeps the revalidated stylesheet on the network', async () => {
+  const worker = createWorker({ fetch: async request => new Response('font resource', { headers: {
+    'x-dsh-upstream-cache-control': request.url.endsWith('.woff2') ? 'public, max-age=31536000, immutable' : 'no-cache',
+  } }) })
+  const font = 'https://dsh.test/font-replacement/abcdef.woff2'
+  const css = 'https://dsh.test/font-replacement/fonts.css'
+  assert.equal((await worker.fetchEvent(new Request(font))).handled, true)
+  await worker.fetchEvent(new Request(css))
+  assert.deepEqual(assetKeys(worker), [font])
+})

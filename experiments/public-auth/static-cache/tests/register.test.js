@@ -16,7 +16,7 @@ test('carries every worker setting', () => {
   assert.equal(payload.concurrency, 2)
   assert.equal(payload.graceMs, 180_000)
   assert.equal(payload.maxAgeMs, 4 * 86_400_000)
-  assert.deepEqual(payload.prefixes, ['/assets/', '/plugins/'])
+  assert.deepEqual(payload.prefixes, ['/assets/', '/plugins/', '/font-replacement/'])
   assert.deepEqual(payload.exclude, ['/plugins/events'])
   assert.ok(registerScript(config).includes(JSON.stringify(pageScriptConfig(config))))
 })

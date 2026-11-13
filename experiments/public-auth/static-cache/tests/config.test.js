@@ -6,7 +6,7 @@ test('applies documented defaults', () => {
   const config = resolveConfig(undefined)
   assert.equal(config.route, DEFAULTS.route)
   assert.equal(config.scope, '/')
-  assert.deepEqual(config.prefixes, ['/assets/', '/plugins/'])
+  assert.deepEqual(config.prefixes, ['/assets/', '/plugins/', '/font-replacement/'])
   assert.deepEqual(config.exclude, ['/plugins/events'])
   assert.equal(config.prime, true)
   assert.equal(config.concurrency, 4)

@@ -37,7 +37,7 @@
 export const DEFAULTS = Object.freeze({
   route: '/__dsh-static-cache/sw.js',
   scope: '/',
-  prefixes: Object.freeze(['/assets/', '/plugins/']),
+  prefixes: Object.freeze(['/assets/', '/plugins/', '/font-replacement/']),
   exclude: Object.freeze(['/plugins/events']),
   prime: true,
   concurrency: 4,
