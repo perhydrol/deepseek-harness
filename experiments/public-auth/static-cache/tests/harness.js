@@ -122,8 +122,9 @@ export function createWorker(options = {}) {
 
   const defaultFetch = async (request) => {
     const url = urlOf(request)
+    if (new URL(url).pathname === '/_auth/session') return new Response('{}')
     calls.push(url)
-    return new Response(`body:${url}`, { status: 200, headers: { 'content-length': String(url.length) } })
+    return new Response(`body:${url}`, { status: 200, headers: { 'content-length': String(url.length), 'x-dsh-upstream-cache-control': 'private, max-age=60' } })
   }
 
   const self = {

@@ -7,6 +7,8 @@ profile plugin. It keeps the deployment's authentication untouched: the
 service worker only stores bytes that an authenticated page already fetched
 with its session cookie.
 
+Storage requires `X-DSH-Upstream-Cache-Control` from the authentication proxy to declare a positive `max-age`, without `no-store` or `no-cache`; missing policy is denied. Every cache hit checks `/_auth/session` over the network. Logout requests purge the cache even without page navigation. Old cache generations are removed on worker activation. For the font replacement plugin, add `/font-replacement/` to `prefixes`: its hashed WOFF2 files qualify, while its `no-cache` stylesheet stays on the network.
+
 ## What it caches
 
 | Path | Cached | Why |
@@ -97,7 +99,7 @@ assets change independently.
 In DevTools open one authenticated page twice:
 
 * Network shows `/assets/*` and `/plugins/*` with size `(ServiceWorker)` and
-  0 transferred bytes on the second load;
+  0 asset bytes transferred on the second load, with a separate session check;
 * `/api/*` still appears on the network;
 * `await __DSH_STATIC_CACHE__.stats()` reports `entries`, `bytes`, `rev`,
   `hits`, `evicted`, `reconciled`, and `lastPrune`; entries and bytes count

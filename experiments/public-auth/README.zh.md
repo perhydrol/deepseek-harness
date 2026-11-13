@@ -24,7 +24,7 @@ node dist/main.js serve --origin http://127.0.0.1:8080 --launch-url-file ./launc
 
 浏览器访问 `/` 会跳转到 `/_auth/login`。HttpOnly、SameSite=Strict 的持久 Cookie 默认有效 30 天，可通过 `--session-days` 调整，不采用滑动续期。HTTPS 来源额外设置 Secure 和 `__Secure-` 前缀。浏览器 JavaScript 不会将凭证写入 localStorage。带同源 Origin 请求头的 `POST /_auth/logout` 撤销该会话并断开其 WebSocket；会话到期也会断开其 WebSocket。`GET /_auth/session` 检查登录状态。已验证的会话默认在进程内有界缓存 60 秒（`--session-cache-seconds`；`0` 禁用）。注销会立即失效对应缓存，每次请求都会检查会话到期时间；直接删除 SQLite 中的会话时，最多仍可使用一个缓存生命周期。
 
-已鉴权的 GET、HEAD 请求收到状态码 200 时，JavaScript 和 CSS 可以在浏览器私有缓存一年（`private, max-age=31536000, immutable`）：`/assets/` 文件要求文件名带哈希，`/plugins/` 资源要求查询参数带 `rev`，且 DSH 上游声明 `immutable`。资源哈希或插件修订变化后使用新 URL。HTML、API、附件、认证响应、错误和无版本资源仍为 `no-store`；共享代理和 CDN 缓存必须保持关闭。已缓存的代码可能在注销后留在浏览器中，复用时无需再次发起鉴权请求。代码不含 Session 数据；网络请求仍须通过鉴权。
+所有已鉴权响应（包括静态资源）使用 `Cache-Control: no-store`。代理通过 `X-DSH-Upstream-Cache-Control` 传递 DSH 原始缓存策略，并覆盖上游同名响应头。[可选静态缓存插件](static-cache/README.zh.md) 按此策略决定是否写入浏览器 Cache Storage，读取缓存前校验会话。共享代理和 CDN 缓存必须保持关闭。
 
 Better Auth 按解析后的客户端 IP 限制登录尝试，默认每 60 秒五次，可用 `--login-attempts`、`--login-window-seconds` 调整，并在 SQLite 中持久保存计数。`--trusted-proxy-ips` 接受逗号分隔的直接代理 IP，默认留空，不信任任何代理。只有已配置对端可以提供单个有效的 `X-Forwarded-For` 地址；这些对端缺少该头、值无效或包含地址链时返回 HTTP 400。其他对端始终使用连接 IP，不受传入头影响。代理 IP 配置无效时启动失败。Nginx 与网络限制见[部署说明](deploy/README.zh.md)。上游修改请求绝不自动重试。收到上游 401 后，代理为下一次请求更新凭据，不重放失败请求。操作失败时结果可能未知，请检查 DSH 后再决定是否重试修改。
 

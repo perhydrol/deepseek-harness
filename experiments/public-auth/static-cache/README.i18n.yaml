@@ -3,11 +3,11 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write experiments/public-auth/static-cache/README.md
 /dsh-static-cache:
-  en: 1d9e405793c67d5d
-  zh: 2621f85fe4ee4240
+  en: e26762903376f606
+  zh: 83ad089cd9ebabeb
 /dsh-static-cache/what-it-caches:
   en: 2bfdfac26c2e0522
-  zh: 39b26c08d877cae6
+  zh: 6846493921f0d2d2
 /dsh-static-cache/install-container-deployment:
   en: 7685f6d863d40bf3
   zh: 26a051aabab518b9
@@ -18,7 +18,7 @@
   en: 59e62c8b3a9eddbc
   zh: 4dd7a3554275e481
 /dsh-static-cache/verify:
-  en: f0275f832bcb0024
+  en: 2701268327c9cc8e
   zh: 08fa8f24c1fce5d8
 /dsh-static-cache/remove:
   en: 95b79ae790192fbd

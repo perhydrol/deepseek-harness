@@ -4,6 +4,8 @@
 
 以树外 profile 插件安装的 DSH Web 静态资源浏览器缓存。不改动部署的鉴权：Service Worker 只保存已登录页面用会话 Cookie 实际取回的字节。
 
+写入缓存要求认证代理提供的 `X-DSH-Upstream-Cache-Control` 声明正数 `max-age`，且不含 `no-store` 或 `no-cache`；缺失策略时拒绝缓存。每次缓存命中均通过网络请求 `/_auth/session` 校验会话。注销请求即使不发生页面导航也会清理缓存。Worker 激活时删除旧缓存代际。字体替换插件需在 `prefixes` 中加入 `/font-replacement/`：哈希命名的 WOFF2 可以缓存，声明 `no-cache` 的样式表继续走网络。
+
 ## 缓存范围
 
 | 路径 | 是否缓存 | 原因 |
@@ -15,7 +17,7 @@
 | `/plugins/events`（SSE） | 否 | 长连接 |
 | `/_auth/*`、`/connect` | 否 | 鉴权 |
 
-cache-first 意味着第二次访问这些路径时不再发出网络请求。RPC 延迟不变：这个插件去掉的是静态资源的往返，不是 RPC 的往返。
+cache-first 意味着第二次访问这些路径时先校验会话，再复用资源字节。RPC 延迟不变：这个插件去掉的是静态资源的往返，不是 RPC 的往返。
 
 ## 安装（容器部署）
 

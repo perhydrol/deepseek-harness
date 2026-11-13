@@ -383,7 +383,7 @@ async function verify(port, origin, credential) {
   const asset = await request({ port, path: '/assets/index-CN7NIWNw.js', headers: {
     host, origin, cookie: credential, 'user-agent': USER_AGENT, 'x-forwarded-for': '198.51.100.7',
   } })
-  checks.push([asset.status === 200 && asset.headers['cache-control'] === 'private, max-age=31536000, immutable', 'hashed asset caching'])
+  checks.push([asset.status === 200 && asset.headers['cache-control'] === 'no-store', 'authenticated asset HTTP caching disabled'])
   const anonymous = await request({ port, path: '/api/session', headers: {
     host, 'user-agent': USER_AGENT, 'x-forwarded-for': '198.51.100.7',
   } })

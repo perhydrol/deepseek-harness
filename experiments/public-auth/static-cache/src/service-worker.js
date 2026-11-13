@@ -3,8 +3,8 @@
  *
  * The worker only stores bytes that the authenticated page already fetched
  * with its session cookie. It never handles navigations' bodies, `/api`, the
- * SSE stream, or any cross-origin request, so the deployment's authentication
- * gate stays the only way to obtain these bytes over the network.
+ * SSE stream, or any cross-origin request. Cache hits require a successful
+ * session check; storage requires the proxy's original upstream policy.
  *
  * Invalidation is generation-based: the page sends `init` with the client
  * graph revision (`__DSH_BOOT__.rev`) and its own `performance.timeOrigin`.
@@ -12,7 +12,7 @@
  * removed after a grace period; entries from the current page survived.
  */
 
-const CACHE_NAME = 'dsh-static-v1'
+const CACHE_NAME = 'dsh-static-v2'
 const META_PATH = '/__dsh-static-cache-meta__'
 const META_URL = new URL(META_PATH, self.location.origin).href
 const PRUNE_INTERVAL_MS = 60 * 60 * 1000
@@ -40,6 +40,7 @@ const config = EMBEDDED_CONFIG ?? SAFE_CONFIG
 /** Paths that must never be stored, even under a misconfigured policy. */
 const NEVER_CACHE = ['/api', '/_auth', '/connect']
 
+let epoch = 0
 let cachePromise = null
 let meta = null
 let metaWrite = Promise.resolve()
@@ -141,6 +142,11 @@ function allowed(url) {
  */
 function shouldStore(request, response) {
   if (!response.ok) return false
+  const policy = response.headers.get('x-dsh-upstream-cache-control')
+  if (policy === null) return false
+  const directives = policy.toLowerCase().split(',').map(value => value.trim())
+  if (directives.some(value => /^(?:no-store|no-cache)(?:=|$)/.test(value))) return false
+  if (!directives.some(value => /^max-age=[1-9][0-9]*$/.test(value))) return false
   if (response.type === 'opaque' || response.type === 'opaqueredirect' || response.type === 'error') return false
   if (response.redirected) return false
   if (response.headers.has('set-cookie')) return false
@@ -261,10 +267,12 @@ async function prune(force) {
   await saveMeta()
 }
 
-/** @param {Request} request @returns {Promise<void>} */
+/** @returns {Promise<void>} */
 async function purge() {
   // Let an in-flight metadata write finish before deleting; a later write
   // would otherwise recreate an empty cache generation.
+  epoch += 1
+  await Promise.all([...inflight.values()])
   await metaWrite
   for (const name of await caches.keys()) {
     if (name === CACHE_NAME || name.startsWith('dsh-static-')) await caches.delete(name)
@@ -330,15 +338,33 @@ async function serveAsset(event, request) {
     stats.misses += 1
     return fetch(request)
   }
+  const generation = epoch
   const cache = await openCache()
   const hit = await cache.match(request, { ignoreVary: true })
-  if (hit !== undefined) {
+  let state
+  try {
+    state = await loadMeta()
+  } catch (error) {
+    stats.lastError = String(error)
+    return fetch(request)
+  }
+  const policy = hit?.headers.get('x-dsh-upstream-cache-control') ?? ''
+  const maxAge = Number(/(?:^|,)\s*max-age=([0-9]+)/i.exec(policy)?.[1] ?? 0)
+  const fresh = hit !== undefined && Date.now() - (state.storedAt[request.url] ?? 0) < maxAge * 1000
+  if (fresh) {
+    const session = await fetch(new Request(new URL('/_auth/session', self.location.origin), {
+      credentials: 'same-origin', cache: 'no-store',
+    }))
+    if (!session.ok || generation !== epoch) {
+      await purge()
+      return fetch(request)
+    }
     stats.hits += 1
     return hit
   }
   stats.misses += 1
   const response = await fetch(request)
-  if (shouldStore(request, response)) event.waitUntil(store(request, response.clone()))
+  if (generation === epoch && shouldStore(request, response)) event.waitUntil(store(request, response.clone()))
   return response
 }
 
@@ -364,6 +390,7 @@ async function mapLimit(items, limit, worker) {
  */
 async function prime(rawUrls, reply) {
   const urls = Array.isArray(rawUrls) ? [...new Set(rawUrls.filter(item => typeof item === 'string'))] : []
+  const generation = epoch
   const result = { total: urls.length, fetched: 0, skipped: 0, failed: 0 }
   const cache = await openCache()
   await mapLimit(urls, config.concurrency, async (path) => {
@@ -385,7 +412,7 @@ async function prime(rawUrls, reply) {
     }
     try {
       const response = await fetch(request)
-      if (!shouldStore(request, response)) {
+      if (generation !== epoch || !shouldStore(request, response)) {
         result.skipped += 1
         return
       }
@@ -431,7 +458,6 @@ async function settle(task, reply) {
 
 self.addEventListener('fetch', (event) => {
   const request = event.request
-  if (request.method !== 'GET') return
   let url
   try {
     url = new URL(request.url)
@@ -439,6 +465,17 @@ self.addEventListener('fetch', (event) => {
     return
   }
   if (url.origin !== self.location.origin) return
+  if (request.method === 'POST' && url.pathname === '/_auth/logout') {
+    event.respondWith((async () => {
+      try {
+        return await fetch(request)
+      } finally {
+        await purge()
+      }
+    })())
+    return
+  }
+  if (request.method !== 'GET') return
   if (request.mode === 'navigate') {
     event.respondWith(navigate(request))
     return

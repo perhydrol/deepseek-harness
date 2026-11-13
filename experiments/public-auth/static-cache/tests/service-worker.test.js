@@ -6,7 +6,18 @@ const ASSET_A = 'https://dsh.test/assets/index-abcdef12.js'
 const ASSET_B = 'https://dsh.test/assets/vendor-12345678.js'
 const META = '/__dsh-static-cache-meta__'
 
-const assetKeys = worker => [...worker.caches.entries('dsh-static-v1').keys()].filter(key => !key.includes(META))
+test('rejects missing and forbidden upstream cache policies', async () => {
+  for (const policy of [null, 'no-store', 'no-cache', 'public, max-age=0']) {
+    const worker = createWorker({ fetch: async () => new Response('private-value', { headers: {
+      'cache-control': 'no-store',
+      ...(policy === null ? {} : { 'x-dsh-upstream-cache-control': policy }),
+    } }) })
+    await worker.fetchEvent(new Request(ASSET_A))
+    assert.equal(assetKeys(worker).length, 0, String(policy))
+  }
+})
+
+const assetKeys = worker => [...worker.caches.entries('dsh-static-v2').keys()].filter(key => !key.includes(META))
 
 /** @param {ReturnType<typeof createWorker>} worker @param {{ rev?: string, timeOrigin?: number }} [overrides] */
 const init = (worker, overrides = {}) => worker.message({
@@ -157,9 +168,9 @@ test('purges every owned cache on demand', async () => {
   const worker = createWorker()
   await init(worker)
   await worker.fetchEvent(new Request(ASSET_A))
-  assert.equal(worker.caches.has('dsh-static-v1'), true)
+  assert.equal(worker.caches.has('dsh-static-v2'), true)
   await worker.message({ type: 'purge' })
-  assert.equal(worker.caches.has('dsh-static-v1'), false)
+  assert.equal(worker.caches.has('dsh-static-v2'), false)
 })
 
 test('purges when a navigation lands on the login page', async () => {
@@ -176,7 +187,7 @@ test('purges when a navigation lands on the login page', async () => {
   const navigation = { url: 'https://dsh.test/', method: 'GET', mode: 'navigate', headers: new Headers() }
   const result = await worker.fetchEvent(navigation)
   assert.equal(result.handled, true)
-  assert.equal(worker.caches.has('dsh-static-v1'), false)
+  assert.equal(worker.caches.has('dsh-static-v2'), false)
 })
 
 test('purges when a navigation targets the login page directly', async () => {
@@ -191,7 +202,7 @@ test('purges when a navigation targets the login page directly', async () => {
   }
   const result = await worker.fetchEvent(navigation)
   assert.equal(result.handled, true)
-  assert.equal(worker.caches.has('dsh-static-v1'), false)
+  assert.equal(worker.caches.has('dsh-static-v2'), false)
 })
 
 test('primes only missing, allowed entries', async () => {
@@ -212,7 +223,7 @@ test('evicts the oldest entry when the cache limit is reached', async () => {
   const worker = createWorker({
     fetch: async () => new Response('twenty-bytes-body!!!!', {
       status: 200,
-      headers: { 'content-length': '20' },
+      headers: { 'content-length': '20', 'x-dsh-upstream-cache-control': 'public, max-age=60' },
     }),
     config: workerConfig({ maxCacheBytes: 30, maxEntryBytes: 30 }),
   })
@@ -246,7 +257,7 @@ test('does not store oversized responses', async () => {
 })
 
 test('accounts for streamed responses that omit content-length', async () => {
-  const worker = createWorker({ fetch: async () => new Response('streamed-body') })
+  const worker = createWorker({ fetch: async () => new Response('streamed-body', { headers: { 'x-dsh-upstream-cache-control': 'public, max-age=60' } }) })
   await init(worker)
   await worker.fetchEvent(new Request(ASSET_A))
   const stats = await worker.message({ type: 'stats' })
@@ -264,7 +275,7 @@ test('removes metadata records whose bytes are gone', async () => {
   const worker = createWorker()
   await init(worker)
   await worker.fetchEvent(new Request(ASSET_A))
-  const cache = await worker.caches.open('dsh-static-v1')
+  const cache = await worker.caches.open('dsh-static-v2')
   await cache.delete(ASSET_A)
   const after = await worker.message({ type: 'prune' })
   assert.equal(after.entries, 0)
@@ -275,7 +286,7 @@ test('drops bytes whose metadata record is gone', async () => {
   const first = createWorker()
   await init(first)
   await first.fetchEvent(new Request(ASSET_A))
-  const cache = await first.caches.open('dsh-static-v1')
+  const cache = await first.caches.open('dsh-static-v2')
   const record = JSON.parse(await (await cache.match('https://dsh.test/__dsh-static-cache-meta__')).text())
   delete record.storedAt[ASSET_A]
   delete record.bytes[ASSET_A]
@@ -294,7 +305,7 @@ test('does not overwrite good metadata when the record cannot be read', async ()
   const first = createWorker()
   await init(first)
   await first.fetchEvent(new Request(ASSET_A))
-  first.caches.failNextMatch('dsh-static-v1', 'https://dsh.test/__dsh-static-cache-meta__')
+  first.caches.failNextMatch('dsh-static-v2', 'https://dsh.test/__dsh-static-cache-meta__')
 
   // A restarted worker starts with no in-memory metadata and must read it.
   const second = createWorker({ caches: first.caches })
@@ -302,7 +313,7 @@ test('does not overwrite good metadata when the record cannot be read', async ()
   assert.ok(failed.lastError)
   assert.equal(assetKeys(second).length, 1)
 
-  const cache = await second.caches.open('dsh-static-v1')
+  const cache = await second.caches.open('dsh-static-v2')
   const record = JSON.parse(await (await cache.match('https://dsh.test/__dsh-static-cache-meta__')).text())
   assert.ok(record.storedAt[ASSET_A] !== undefined)
 })
@@ -311,7 +322,7 @@ test('re-stores an entry whose metadata record outlived its bytes', async () => 
   const worker = createWorker()
   await init(worker)
   await worker.fetchEvent(new Request(ASSET_A))
-  const cache = await worker.caches.open('dsh-static-v1')
+  const cache = await worker.caches.open('dsh-static-v2')
   await cache.delete(ASSET_A)
   await worker.fetchEvent(new Request(ASSET_A))
   const stats = await worker.message({ type: 'stats' })
@@ -327,4 +338,46 @@ test('drops a stale cache name on activate', async () => {
   worker.dispatch('activate', { waitUntil: promise => { activated = promise } })
   await activated
   assert.equal(worker.caches.has('dsh-static-v0'), false)
+})
+
+
+test('checks session before replay and purges after revocation', async () => {
+  let active = true
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') return new Response('{}', { status: active ? 200 : 401 })
+    return new Response(active ? 'asset' : 'unauthorized', { status: active ? 200 : 401,
+      headers: { 'x-dsh-upstream-cache-control': 'public, max-age=60' } })
+  } })
+  await worker.fetchEvent(new Request(ASSET_A))
+  active = false
+  const result = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(result.response.status, 401)
+  assert.equal(assetKeys(worker).length, 0)
+})
+
+test('purges after logout through fetch without page navigation', async () => {
+  const worker = createWorker()
+  await worker.fetchEvent(new Request(ASSET_A))
+  await worker.fetchEvent(new Request('https://dsh.test/_auth/logout', { method: 'POST' }))
+  assert.equal(assetKeys(worker).length, 0)
+})
+
+
+test('expires entries according to the upstream max-age', async () => {
+  const worker = createWorker()
+  await worker.fetchEvent(new Request(ASSET_A))
+  worker.clock.now += 60_001
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(worker.calls.length, 2)
+})
+
+test('purges opaque manual-redirect logout responses', async () => {
+  let logout = false
+  const worker = createWorker({ fetch: async () => logout
+    ? { ok: false, status: 0, type: 'opaqueredirect' }
+    : new Response('asset', { headers: { 'x-dsh-upstream-cache-control': 'private, max-age=60' } }) })
+  await worker.fetchEvent(new Request(ASSET_A))
+  logout = true
+  await worker.fetchEvent(new Request('https://dsh.test/_auth/logout', { method: 'POST', redirect: 'manual' }))
+  assert.equal(assetKeys(worker).length, 0)
 })

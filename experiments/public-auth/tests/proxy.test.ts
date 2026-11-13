@@ -159,13 +159,13 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   assert.equal(captured.authorization, undefined)
   assert.equal(captured['x-forwarded-host'], undefined)
   assert.equal(result.headers['set-cookie'], undefined)
-  await t.test('only successful versioned scripts and styles receive private browser caching', async () => {
+  await t.test('preserves upstream policy separately while disabling HTTP caching', async () => {
     for (const resource of resources) {
       for (const method of ['GET', 'HEAD'] as const) {
         const response = await app.inject({ method, url: resource.path, headers })
         assert.equal(response.statusCode, resource.status ?? 200)
-        assert.equal(response.headers['cache-control'], resource.cacheable
-          ? 'private, max-age=31536000, immutable' : 'no-store', `${method} ${resource.path}`)
+        assert.equal(response.headers['x-dsh-upstream-cache-control'], resource.cache)
+        assert.equal(response.headers['cache-control'], 'no-store', `${method} ${resource.path}`)
       }
     }
     const anonymous = await app.inject({ url: resources[0]!.path, headers: common })
