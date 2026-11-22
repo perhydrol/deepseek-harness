@@ -217,9 +217,7 @@ async function downloadSelection(files, scope, input, limits, signal) {
 const inject = [
 	"webServer",
 	"connection",
-	"workspaceFiles",
-	"sessions",
-	"sandboxPolicy"
+	"workspaceFiles"
 ];
 /**
 * Register an authenticated endpoint; unloading aborts and awaits all active requests.
@@ -354,12 +352,8 @@ function apply(ctx, config) {
 				throw new DownloadError("invalid-selection", 400, { cause: error });
 			}
 			if (!body || typeof body.sessionId !== "string" || body.sessionId.length === 0) throw new DownloadError("invalid-selection");
-			const header = ctx.sessions.get(body.sessionId)?.header ?? (await ctx.sessionPersistence?.stat(body.sessionId))?.header;
-			if (!header) throw new DownloadError("not-found", 404);
-			const scope = {
-				sessionId: body.sessionId,
-				workspaceRoot: header.cwd ?? ctx.sandboxPolicy.workspaceRoot
-			};
+			const scope = await ctx.workspaceFiles.scopeOf(body.sessionId, signal);
+			if (!scope) throw new DownloadError("not-found", 404);
 			if (body.action === "list") {
 				const path = selectionPaths([body.path])[0];
 				const result = await directory(ctx.workspaceFiles, scope, path, signal);

@@ -31,15 +31,20 @@ test('authenticated proxy preserves exact file and ZIP bytes, filenames, and log
   const bytes = Buffer.from([0, 255, 1, 128, 13, 10]);
   const ctx = {
     connection: { admit: req => req.headers.cookie === 'dsh-auth-test=private' ? { peer: { principal: { kind: 'owner' } } } : { rejection: 401 } },
-    sessions: { get: id => id === 'fixture' ? { header: { cwd: '/workspace' } } : undefined },
+    sessions: { get: id => id === 'fixture' ? { header: { cwd: '/original' } } : undefined },
     sandboxPolicy: { workspaceRoot: '/workspace' },
     workspaceFiles: {
-      async list(_scope, path) {
+      async scopeOf(id) { return id === 'fixture' ? { sessionId: id, workspaceRoot: '/workspace' } : undefined; },
+      async list(scope, path) {
+        assert.deepEqual(scope, { sessionId: 'fixture', workspaceRoot: '/workspace' });
         assert.notEqual(path, '', 'the workspace service rejects empty paths');
         if (path === '.') path = '';
         return { path, entries: path === '' ? [{ name: '报告.bin', type: 'file' }, { name: 'empty', type: 'directory' }] : [], truncated: false };
       },
-      async readBytes() { return { data: bytes, eof: true, version: 'v1' }; },
+      async readBytes(scope) {
+        assert.deepEqual(scope, { sessionId: 'fixture', workspaceRoot: '/workspace' });
+        return { data: bytes, eof: true, version: 'v1' };
+      },
     },
     webServer: { register: route => { handler = route.handler; return () => { handler = undefined; }; } },
     effect: effect => { dispose = effect(); },

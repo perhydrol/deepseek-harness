@@ -13,14 +13,15 @@ kind: "package-bundle"
 
 ## 目录
 
-- [使用](#使用)
-- [实现](#实现)
-- [已知限制](#已知限制)
-- [开发](#开发)
+- [使用](#use-this-package)
+- [实现](#understand-the-implementation)
+- [已知限制](#known-limitations)
+- [开发](#development)
 
+<a id="use-this-package"></a>
 ## 使用
 
-组合补丁为 [cordis.patch.yml](cordis.patch.yml)。在 DSH 创造模式中，通过 `plugin_manager` 使用 `action: install_bundle`，将本目录的绝对路径作为 `target` 安装。本环境尚未验证目标 profile 安装。Profile 需要提供 Web Connection、工作区文件服务、会话、沙盒策略和文件侧边栏插槽。目录包含 JavaScript 产物；安装时需要声明的 Archiver 依赖，不需要运行构建脚本。激活后刷新浏览器。
+组合补丁为 [cordis.patch.yml](cordis.patch.yml)。在 DSH 创造模式中，通过 `plugin_manager` 使用 `action: install_bundle`，将本目录的绝对路径作为 `target` 安装。本环境尚未验证目标 profile 安装。Profile 需要提供 Web Connection、工作区文件服务和文件侧边栏插槽。目录包含 JavaScript 产物；安装时需要声明的 Archiver 依赖，不需要运行构建脚本。激活后刷新浏览器。
 
 在窗口中勾选文件或目录，通过箭头按钮进入目录，再准备所选内容。选择目录会递归包含其中内容，包括隐藏文件；同时选中目录及其子项时，每个条目只包含一次。ZIP 保留工作区相对路径和空目录。清空选择会取消所有勾选。取消或关闭窗口会中止准备；选择变化和关闭会请求释放尚未使用的下载，过期清理作为兜底。每个准备好的链接只能使用一次，已使用或过期时重新点击准备下载。保存链接表示内容已准备好，不表示浏览器已经完成保存。
 
@@ -37,21 +38,24 @@ kind: "package-bundle"
 | `preparedTtlMs` | 300000 | 未使用下载的保留时间，单位为毫秒 |
 | `temporaryDirectory` | Host `os.tmpdir()` | 可选的私有临时输出绝对目录 |
 
+<a id="understand-the-implementation"></a>
 ## 实现
 
 <details>
 <summary>实现细节</summary>
 
-Client 只通过 `sidebar.right.tab.files.actions` 贡献入口，不检查或替换文件树 DOM。原生模态对话框提供焦点约束和 Escape 关闭。Host 对每个请求执行 Connection 登录校验，仅接受 owner 身份。它解析会话头，再通过组合中的工作区文件服务列目录、读取所选内容。目录别名、不可移植的归档路径、不支持的条目和不完整列表都会在返回下载之前失败。不添加模型工具：将内容保存到用户浏览器属于用户操作，不修改应用数据。
+Client 只通过 `sidebar.right.tab.files.actions` 贡献入口，不检查或替换文件树 DOM。原生模态对话框提供焦点约束和 Escape 关闭。Host 对每个请求执行 Connection 登录校验，仅接受 owner 身份。它通过组合中的工作区文件服务列目录、读取所选内容。会话目录解析规则见 [Host 入口](src/index.md)。目录别名、不可移植的归档路径、不支持的条目和不完整列表都会在返回下载之前失败。不添加模型工具：将内容保存到用户浏览器属于用户操作，不修改应用数据。
 
 Host 逐个文件分块读取，通过 Archiver 的原生异步 zlib 流压缩。流背压限制排队的文件数据；Host 写入私有临时文件，准备完整后才返回随机、短期有效的下载票据。已登录的 GET 消费该票据，将文件流交给浏览器原生下载管理器，不创建浏览器 Blob。准备失败、取消、已消费的传输、显式释放、过期和插件卸载都会清理临时输出。卸载时先注销路由，中止请求，并等待读取及清理完成。每个文件在各字节窗口间的版本必须保持稳定，但整组选项不是原子文件系统快照。
 
 </details>
 
+<a id="known-limitations"></a>
 ## 已知限制
 
 本组合包面向 Web profile 和已登录的所有者浏览器，不支持共享身份或仅桌面运行的 profile。现有文件树插槽仅提供显示目录，不提供行选择，因此插件提供自己的选择窗口。准备过程需要临时磁盘空间：未使用及准备中的输出与活动传输分别限额，应为 `(maxPreparedDownloads + maxConcurrent) × maxBytes` 加 ZIP 元数据开销预留空间。进程崩溃可能遗留临时目录，需要主机正常清理。符号链接不会作为链接归档；路径别名被拒绝，文件符号链接沿用现有读取服务的拒绝行为。通过独立 [public-auth 代理](../public-auth) 的实际 HTTP 联调测试已验证登录拦截、二进制及 ZIP 内容、中文附件文件名和票据重复使用拒绝，无需修改该代理。UI 渲染、目标 profile 安装和 iOS 保存仍需实际验证。
 
+<a id="development"></a>
 ## 开发
 
 选择器用空相对路径表示工作区根目录；Host 调用工作区文件服务时传入 `.`，因为该服务拒绝空请求路径，并用空规范路径返回根目录。

@@ -6,10 +6,10 @@ import { pipeline } from 'node:stream/promises';
 import { tmpdir } from 'node:os';
 import { isAbsolute } from 'node:path';
 import { directory, DownloadError, downloadSelection, selectionPaths } from './download.ts';
-import type { Files } from './download.ts';
+import type { Files, Scope } from './download.ts';
 
 /** Required services; the plugin cannot serve files without authentication. */
-export const inject = ['webServer', 'connection', 'workspaceFiles', 'sessions', 'sandboxPolicy'];
+export const inject = ['webServer', 'connection', 'workspaceFiles'];
 /** Deployment caps, supplied by the bundle patch. */
 export interface Config {
   maxBytes: number; maxEntries: number; maxConcurrent: number;
@@ -19,10 +19,9 @@ export interface Config {
 /** Structural host APIs used by this standalone plugin. */
 export interface Host {
   connection: { admit(req: IncomingMessage): { rejection: number } | { peer: { principal: { kind: string } } } };
-  workspaceFiles: Files;
-  sessions: { get(id: string): { header: { cwd?: string } } | undefined };
-  sessionPersistence?: { stat(id: string): Promise<{ header: { cwd?: string } } | undefined> };
-  sandboxPolicy: { workspaceRoot: string };
+  workspaceFiles: Files & {
+    scopeOf(sessionId: string, signal?: AbortSignal): Promise<Scope | undefined>;
+  };
   webServer: { register(route: { kind: 'exact'; path: string; handler(req: IncomingMessage, res: ServerResponse): Promise<void> }): () => void };
   effect(effect: () => () => void | Promise<void>): void;
 }
@@ -115,9 +114,8 @@ export function apply(ctx: Host, config: Config): void {
       try { body = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
       catch (error) { throw new DownloadError('invalid-selection', 400, { cause: error }); }
       if (!body || typeof body.sessionId !== 'string' || body.sessionId.length === 0) throw new DownloadError('invalid-selection');
-      const header = ctx.sessions.get(body.sessionId)?.header ?? (await ctx.sessionPersistence?.stat(body.sessionId))?.header;
-      if (!header) throw new DownloadError('not-found', 404);
-      const scope = { sessionId: body.sessionId, workspaceRoot: header.cwd ?? ctx.sandboxPolicy.workspaceRoot };
+      const scope = await ctx.workspaceFiles.scopeOf(body.sessionId, signal);
+      if (!scope) throw new DownloadError('not-found', 404);
       if (body.action === 'list') {
         const path = selectionPaths([body.path])[0]!;
         const result = await directory(ctx.workspaceFiles, scope, path, signal);

@@ -18,9 +18,10 @@ This optional Web bundle adds a Download button beside the Files tab's reload ac
 - [Known limitations](#known-limitations)
 - [Development](#development)
 
+<a id="use-this-package"></a>
 ## Use this package
 
-The bundle patch is [cordis.patch.yml](cordis.patch.yml). In DSH creation mode, install this directory through `plugin_manager` with `action: install_bundle` and its absolute directory as `target`. Installation into the target profile has not been verified in this environment. The profile must provide the Web connection, workspace file service, sessions, sandbox policy, and Files sidebar slot. JavaScript artifacts are included; installing the bundle requires its declared Archiver dependency but no build script. Reload the browser after activation.
+The bundle patch is [cordis.patch.yml](cordis.patch.yml). In DSH creation mode, install this directory through `plugin_manager` with `action: install_bundle` and its absolute directory as `target`. Installation into the target profile has not been verified in this environment. The profile must provide the Web connection, workspace file service and Files sidebar slot. JavaScript artifacts are included; installing the bundle requires its declared Archiver dependency but no build script. Reload the browser after activation.
 
 Check files or directories in the dialog, navigate into directories with the arrow button, and prepare the selection. Selecting a directory includes its contents recursively, including hidden files; selecting both a directory and its descendants includes each entry once. The ZIP preserves paths relative to the workspace and retains empty directories. Clear selection removes all checked items. Cancel or closing the dialog aborts preparation; selection changes and closing request release of an unused prepared download, with expiry as the fallback. Each prepared link works once; click Prepare download again to retry a consumed or expired link. A save link indicates that bytes are ready, not that the browser has finished saving them.
 
@@ -37,21 +38,24 @@ The patch configures the following deployment limits. Positive counts and durati
 | `preparedTtlMs` | 300000 | Unused download retention, in milliseconds |
 | `temporaryDirectory` | Host `os.tmpdir()` | Optional absolute directory for private temporary output |
 
+<a id="understand-the-implementation"></a>
 ## Understand the implementation
 
 <details>
 <summary>Implementation internals</summary>
 
-The Client contributes only through `sidebar.right.tab.files.actions`; it does not inspect or replace file-tree DOM. A native modal dialog provides focus containment and Escape dismissal. The Host authenticates every request through Connection admission and accepts only owner principals. It resolves the session header, then uses the composed workspace file service to list and read selected content. Directory aliases, nonportable archive paths, unsupported entries, and incomplete listings fail before a download is returned. No model tool is added: saving bytes into the user's browser is a user action and does not mutate application data.
+The Client contributes only through `sidebar.right.tab.files.actions`; it does not inspect or replace file-tree DOM. A native modal dialog provides focus containment and Escape dismissal. The Host authenticates every request through Connection admission and accepts only owner principals. It uses the composed workspace file service to list and read selected content. Session directory resolution is described in the [Host entry](src/index.md). Directory aliases, nonportable archive paths, unsupported entries, and incomplete listings fail before a download is returned. No model tool is added: saving bytes into the user's browser is a user action and does not mutate application data.
 
 The Host reads one file at a time in bounded windows and compresses with Archiver's native asynchronous zlib streams. Stream backpressure limits queued file data; the Host writes a private temporary file and returns a random, short-lived download ticket only after preparation completes. An authenticated GET consumes the ticket and streams the file into the browser's native download manager, without a browser Blob. Preparation failures, cancellation, consumed transfers, explicit release, expiry, and plugin unload remove the temporary output. Unloading unregisters the route, aborts active requests, and awaits readers and cleanup. Each file's version must remain stable across windows; the selection is not an atomic filesystem snapshot.
 
 </details>
 
+<a id="known-limitations"></a>
 ## Known limitations
 
 This bundle targets Web profiles and authenticated owner browsers; shared peers and desktop-only profiles are not supported. It supplies its own selector because the existing file-tree slot exposes only the displayed directory, not row selection. Preparation needs temporary disk space: unused/preparing outputs are capped separately from active transfers, so allow up to `(maxPreparedDownloads + maxConcurrent) × maxBytes` plus ZIP metadata overhead. Process crashes may leave temporary directories for normal host cleanup. Symlinks are not archived as links; aliases are refused, and file symlinks follow the existing reader's refusal. A real HTTP integration test through the separate [public-auth proxy](../public-auth) verifies login rejection, binary and ZIP content, Chinese attachment filenames, and ticket reuse refusal without changing that proxy. UI rendering, target-profile installation, and iOS saving still require live verification.
 
+<a id="development"></a>
 ## Development
 
 The selector represents the workspace root as an empty relative path; the Host passes `.` to the workspace file service, which rejects empty request paths and returns an empty canonical path for the root.

@@ -9,11 +9,17 @@ function fixture(admission = { peer: { principal: { kind: 'owner' } } }) {
   let handler;
   let dispose;
   let called = 0;
+  let scopes = 0;
   const ctx = {
     connection: { admit: () => admission },
     sessions: { get: id => id === 'valid' ? { header: { cwd: '/work' } } : undefined },
     sandboxPolicy: { workspaceRoot: '/fallback' },
     workspaceFiles: {
+      async scopeOf(id, signal) {
+        scopes++;
+        assert.ok(signal instanceof AbortSignal);
+        return id === 'valid' ? { sessionId: id, workspaceRoot: '/work' } : undefined;
+      },
       async list(scope, path) {
         called++;
         assert.deepEqual(scope, { sessionId: 'valid', workspaceRoot: '/work' });
@@ -27,7 +33,7 @@ function fixture(admission = { peer: { principal: { kind: 'owner' } } }) {
   };
   apply(ctx, { maxBytes: 1000, maxEntries: 20, maxConcurrent: 1, chunkBytes: 1000, compressionLevel: 3, maxPreparedDownloads: 2, preparedTtlMs: 300000 });
   return {
-    ctx, get called() { return called; }, close: () => dispose(),
+    ctx, get called() { return called; }, get scopes() { return scopes; }, close: () => dispose(),
     async call(body, { method = 'POST', type = 'application/json' } = {}) {
       const req = Readable.from([Buffer.from(typeof body === 'string' ? body : JSON.stringify(body))]);
       req.method = method; req.headers = { 'content-type': type };
@@ -45,7 +51,7 @@ function fixture(admission = { peer: { principal: { kind: 'owner' } } }) {
 test('unauthenticated and shared callers never resolve a workspace', async () => {
   for (const admission of [{ rejection: 401 }, { peer: { principal: { kind: 'shared' } } }]) {
     const f = fixture(admission);
-    try { assert.ok([401, 403].includes((await f.call({ sessionId: 'valid', action: 'list', path: '' })).status)); assert.equal(f.called, 0); }
+    try { assert.ok([401, 403].includes((await f.call({ sessionId: 'valid', action: 'list', path: '' })).status)); assert.equal(f.called, 0); assert.equal(f.scopes, 0); }
     finally { await f.close(); }
   }
 });
@@ -70,6 +76,31 @@ test('refuses malformed bodies, unknown sessions, traversal, wrong methods and m
     assert.equal((await f.call({}, { method: 'DELETE' })).status, 405);
     assert.equal((await f.call({}, { type: 'text/plain' })).status, 415);
     assert.equal((await f.call('x'.repeat(65537))).status, 413);
+    assert.equal((await f.call({ sessionId: 'gone', action: 'list', path: '' })).status, 404);
+  } finally { await f.close(); }
+});
+test('listing and preparation follow the current workspace after it moves', async () => {
+  const f = fixture();
+  try {
+    assert.equal((await f.call({ sessionId: 'valid', action: 'list', path: '' })).status, 200);
+    const current = { sessionId: 'valid', workspaceRoot: '/moved' };
+    f.ctx.workspaceFiles.scopeOf = async () => current;
+    let listed = false;
+    let read = false;
+    f.ctx.workspaceFiles.list = async (scope, path) => {
+      assert.deepEqual(scope, current);
+      listed = true;
+      return { path: path === '.' ? '' : path, entries: [{ name: '中文.txt', type: 'file' }], truncated: false };
+    };
+    f.ctx.workspaceFiles.readBytes = async (scope) => {
+      assert.deepEqual(scope, current);
+      read = true;
+      return { data: Buffer.from('moved bytes'), eof: true, version: 'v2' };
+    };
+    assert.equal((await f.call({ sessionId: 'valid', action: 'list', path: '' })).status, 200);
+    assert.equal((await f.call({ sessionId: 'valid', action: 'download', paths: ['中文.txt'] })).status, 200);
+    assert.equal(listed, true);
+    assert.equal(read, true);
   } finally { await f.close(); }
 });
 test('misconfiguration fails activation', () => {
