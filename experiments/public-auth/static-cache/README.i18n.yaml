@@ -3,32 +3,32 @@
 # After editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write experiments/public-auth/static-cache/README.md
 /dsh-static-cache:
-  en: c9c21aae26888353
-  zh: 6a3d8ddb4168e44d
+  en: 7d6fa3ddd1f42a7c
+  zh: e49a23c1b65cc4d8
 /dsh-static-cache/what-it-caches:
-  en: 2bfdfac26c2e0522
-  zh: 6846493921f0d2d2
+  en: ff6c44661e7519eb
+  zh: 901d0740c2034f25
 /dsh-static-cache/install-container-deployment:
-  en: 7685f6d863d40bf3
-  zh: 26a051aabab518b9
+  en: 8c317191381f0382
+  zh: c0573d0aff3463db
 /dsh-static-cache/configuration:
-  en: ccb94398a86461c0
-  zh: 40ce7d0a090042fc
+  en: 774c9ce4e1fdf68e
+  zh: 6647b73e1cf61061
 /dsh-static-cache/invalidation:
-  en: 59e62c8b3a9eddbc
-  zh: 4dd7a3554275e481
+  en: e6cfb10d50ee17e7
+  zh: fb157809a9572457
 /dsh-static-cache/verify:
-  en: 2701268327c9cc8e
-  zh: 08fa8f24c1fce5d8
+  en: aa4ce1da23ecce6e
+  zh: 4d9a143ca8ec6530
 /dsh-static-cache/remove:
   en: 95b79ae790192fbd
   zh: c81a8b64130acb2e
 /dsh-static-cache/security-notes:
-  en: 0c407d26fee8a08b
-  zh: 33c92814c29f23b2
+  en: a5f49046a28e20fd
+  zh: c6fc7b9ccace3b98
 /dsh-static-cache/limitations:
-  en: 19ed10ccf2ba493b
-  zh: 25a75703b998fac1
+  en: d6cd1d7dc115e35a
+  zh: fecde95363dc5a5a
 /dsh-static-cache/tests:
-  en: c3d45dab303a4194
-  zh: be0751f98866261d
+  en: 4b67460e830b9865
+  zh: 2fb1d92820a13057

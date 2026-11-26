@@ -7,7 +7,7 @@ const ASSET_B = 'https://dsh.test/assets/vendor-12345678.js'
 const META = '/__dsh-static-cache-meta__'
 
 test('rejects missing and forbidden upstream cache policies', async () => {
-  for (const policy of [null, 'no-store', 'no-cache', 'public, max-age=0']) {
+  for (const policy of [null, '', 'no-store', 'no-cache', 'public, max-age=0']) {
     const worker = createWorker({ fetch: async () => new Response('private-value', { headers: {
       'cache-control': 'no-store',
       ...(policy === null ? {} : { 'x-dsh-upstream-cache-control': policy }),
@@ -25,6 +25,35 @@ const init = (worker, overrides = {}) => worker.message({
   rev: overrides.rev ?? 'r1',
   timeOrigin: overrides.timeOrigin ?? worker.clock.now,
 })
+
+/**
+ * Fetch implementation with one validator per URL and an optional session hook.
+ * @param {{ body?: string, etag?: string, policy?: string, session?: () => Response }} [options]
+ */
+function etagFetch(options = {}) {
+  const body = options.body ?? 'asset-v1'
+  const etag = options.etag ?? '"v1"'
+  const policy = options.policy ?? 'no-cache'
+  return async (request) => {
+    if (new URL(request.url).pathname === '/_auth/session') {
+      return options.session?.() ?? new Response('{}')
+    }
+    if (request.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { etag, 'x-dsh-upstream-cache-control': policy } })
+    }
+    return new Response(body, { headers: {
+      etag,
+      'x-dsh-upstream-cache-control': policy,
+      'content-length': String(body.length),
+    } })
+  }
+}
+
+/**
+ * @param {ReturnType<typeof createWorker>} worker
+ * @returns {Request[]} Requests carrying a validator.
+ */
+const conditionalRequests = worker => worker.requests.filter(request => request.headers.has('if-none-match'))
 
 test('serves an asset from cache on the second request', async () => {
   const worker = createWorker()
@@ -141,7 +170,11 @@ test('never serves a cached full body to a range request', async () => {
 
 test('does not store responses carrying Set-Cookie', async () => {
   const worker = createWorker({
-    fetch: async () => new Response('cookie', { status: 200, headers: { 'set-cookie': 'a=b' } }),
+    fetch: async () => new Response('cookie', { status: 200, headers: {
+      'set-cookie': 'a=b',
+      'x-dsh-upstream-cache-control': 'no-cache',
+      etag: '"v1"',
+    } }),
   })
   await init(worker)
   await worker.fetchEvent(new Request(ASSET_A))
@@ -156,7 +189,7 @@ test('does not store redirected responses', async () => {
       type: 'basic',
       redirected: true,
       url: ASSET_A,
-      headers: new Headers(),
+      headers: new Headers({ 'x-dsh-upstream-cache-control': 'no-cache', etag: '"v1"' }),
     }),
   })
   await init(worker)
@@ -248,7 +281,11 @@ test('reports hits, misses, entries, and bytes', async () => {
 
 test('does not store oversized responses', async () => {
   const worker = createWorker({
-    fetch: async () => new Response('too-big', { status: 200, headers: { 'content-length': '100' } }),
+    fetch: async () => new Response('too-big', { status: 200, headers: {
+      'content-length': '100',
+      'x-dsh-upstream-cache-control': 'no-cache',
+      etag: '"v1"',
+    } }),
     config: workerConfig({ maxEntryBytes: 10, maxCacheBytes: 100 }),
   })
   await init(worker)
@@ -383,13 +420,246 @@ test('purges opaque manual-redirect logout responses', async () => {
 })
 
 
-test('caches font fragments but keeps the revalidated stylesheet on the network', async () => {
-  const worker = createWorker({ fetch: async request => new Response('font resource', { headers: {
-    'x-dsh-upstream-cache-control': request.url.endsWith('.woff2') ? 'public, max-age=31536000, immutable' : 'no-cache',
-  } }) })
+test('caches no-cache styles with a validator and revalidates them', async () => {
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') return new Response('{}')
+    const css = request.url.endsWith('.css')
+    const etag = css ? '"css"' : null
+    if (etag !== null && request.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { etag, 'x-dsh-upstream-cache-control': 'no-cache' } })
+    }
+    return new Response('font resource', { headers: {
+      'x-dsh-upstream-cache-control': css ? 'no-cache' : 'public, max-age=31536000, immutable',
+      ...(etag === null ? {} : { etag }),
+    } })
+  } })
   const font = 'https://dsh.test/font-replacement/abcdef.woff2'
   const css = 'https://dsh.test/font-replacement/fonts.css'
   assert.equal((await worker.fetchEvent(new Request(font))).handled, true)
   await worker.fetchEvent(new Request(css))
-  assert.deepEqual(assetKeys(worker), [font])
+  assert.deepEqual(assetKeys(worker).sort(), [css, font].sort())
+  const replayed = await worker.fetchEvent(new Request(css))
+  assert.equal(await replayed.response.text(), 'font resource')
+  assert.equal(conditionalRequests(worker).length, 1)
+})
+
+test('stores a no-cache response that carries a validator', async () => {
+  const worker = createWorker({ fetch: etagFetch() })
+  await init(worker)
+  const first = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await first.response.text(), 'asset-v1')
+  assert.deepEqual(assetKeys(worker), [ASSET_A])
+  const stats = await worker.message({ type: 'stats' })
+  assert.equal(stats.entries, 1)
+})
+
+test('rejects a no-cache response without a validator', async () => {
+  const worker = createWorker({ fetch: async () => new Response('asset', { headers: {
+    'x-dsh-upstream-cache-control': 'no-cache',
+  } }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(assetKeys(worker).length, 0)
+})
+
+test('revalidates with If-Modified-Since when only Last-Modified is present', async () => {
+  const lastModified = 'Thu, 26 Nov 2026 13:42:27 GMT'
+  let revalidated = 0
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') return new Response('{}')
+    if (request.headers.get('if-modified-since') === lastModified) {
+      revalidated += 1
+      return new Response(null, { status: 304, headers: {
+        'x-dsh-upstream-cache-control': 'no-cache',
+        'last-modified': lastModified,
+      } })
+    }
+    return new Response('asset-v1', { headers: {
+      'x-dsh-upstream-cache-control': 'no-cache',
+      'last-modified': lastModified,
+      'content-length': '8',
+    } })
+  } })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(revalidated, 1)
+  assert.deepEqual(assetKeys(worker), [ASSET_A])
+})
+
+test('revalidates with If-None-Match and serves stored bytes on 304', async () => {
+  const worker = createWorker({ fetch: etagFetch() })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const second = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await second.response.text(), 'asset-v1')
+  assert.deepEqual(conditionalRequests(worker).map(request => request.headers.get('if-none-match')), ['"v1"'])
+  const stats = await worker.message({ type: 'stats' })
+  assert.equal(stats.entries, 1)
+  assert.equal(stats.hits, 1)
+  assert.equal(stats.misses, 1)
+  assert.equal(stats.revalidated, 1)
+})
+
+test('replaces an entry when revalidation returns changed bytes', async () => {
+  let version = 1
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') return new Response('{}')
+    const etag = `"v${version}"`
+    if (request.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { etag, 'x-dsh-upstream-cache-control': 'no-cache' } })
+    }
+    const body = `asset-v${version}`
+    return new Response(body, { headers: {
+      etag,
+      'x-dsh-upstream-cache-control': 'no-cache',
+      'content-length': String(body.length),
+    } })
+  } })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  version = 2
+  const second = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await second.response.text(), 'asset-v2')
+  const third = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await third.response.text(), 'asset-v2')
+  const stats = await worker.message({ type: 'stats' })
+  assert.equal(stats.entries, 1)
+  assert.equal(stats.revalidated, 1)
+})
+
+test('drops an entry when revalidation returns a non-admissible response', async () => {
+  let changed = false
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') return new Response('{}')
+    if (changed) return new Response('changed', { headers: { 'cache-control': 'no-store' } })
+    return new Response('asset-v1', { headers: {
+      etag: '"v1"',
+      'x-dsh-upstream-cache-control': 'no-cache',
+      'content-length': '8',
+    } })
+  } })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  changed = true
+  const second = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await second.response.text(), 'changed')
+  assert.equal(assetKeys(worker).length, 0)
+  const stats = await worker.message({ type: 'stats' })
+  assert.equal(stats.dropped, 1)
+})
+
+test('refreshes storedAt when revalidation returns 304', async () => {
+  const worker = createWorker({ fetch: etagFetch() })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const cache = await worker.caches.open('dsh-static-v2')
+  const metaUrl = 'https://dsh.test/__dsh-static-cache-meta__'
+  const before = JSON.parse(await (await cache.match(metaUrl)).text())
+  worker.clock.now += 10_000
+  await worker.fetchEvent(new Request(ASSET_A))
+  const after = JSON.parse(await (await cache.match(metaUrl)).text())
+  assert.ok(after.storedAt[ASSET_A] > before.storedAt[ASSET_A])
+  assert.equal(after.bytes[ASSET_A], before.bytes[ASSET_A])
+})
+
+test('purges and does not serve cached bytes when the session is revoked during revalidation', async () => {
+  let active = true
+  const worker = createWorker({ fetch: async request => {
+    if (new URL(request.url).pathname === '/_auth/session') {
+      return new Response('{}', { status: active ? 200 : 401 })
+    }
+    if (request.headers.get('if-none-match') === '"v1"') {
+      return new Response(null, { status: 304, headers: { etag: '"v1"', 'x-dsh-upstream-cache-control': 'no-cache' } })
+    }
+    if (!active) return new Response('unauthorized', { status: 401 })
+    return new Response('asset-v1', { headers: {
+      etag: '"v1"',
+      'x-dsh-upstream-cache-control': 'no-cache',
+      'content-length': '8',
+    } })
+  } })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  active = false
+  const second = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(second.response.status, 401)
+  assert.equal(assetKeys(worker).length, 0)
+})
+
+test('serves fresh immutable entries without a conditional request on reload', async () => {
+  const worker = createWorker({ fetch: etagFetch({ policy: 'public, max-age=60, immutable' }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const before = worker.requests.length
+  const reloaded = await worker.fetchEvent(new Request(ASSET_A, { cache: 'reload' }))
+  assert.equal(await reloaded.response.text(), 'asset-v1')
+  assert.equal(worker.requests.slice(before).filter(request => request.headers.has('if-none-match')).length, 0)
+})
+
+test('revalidates a fresh non-immutable entry when the request asks for reload', async () => {
+  const worker = createWorker({ fetch: etagFetch({ policy: 'public, max-age=60' }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const before = worker.requests.length
+  await worker.fetchEvent(new Request(ASSET_A, { cache: 'reload' }))
+  assert.equal(worker.requests.slice(before).filter(request => request.headers.get('if-none-match') === '"v1"').length, 1)
+})
+
+test('revalidates a fresh non-immutable entry when the request sends max-age=0', async () => {
+  const worker = createWorker({ fetch: etagFetch({ policy: 'public, max-age=60' }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const before = worker.requests.length
+  await worker.fetchEvent(new Request(ASSET_A, { headers: { 'cache-control': 'max-age=0' } }))
+  assert.equal(worker.requests.slice(before).filter(request => request.headers.get('if-none-match') === '"v1"').length, 1)
+})
+
+test('does not let immutable suppress the no-cache requirement', async () => {
+  const worker = createWorker({ fetch: etagFetch({ policy: 'no-cache, immutable' }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  const before = worker.requests.length
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(worker.requests.slice(before).filter(request => request.headers.get('if-none-match') === '"v1"').length, 1)
+})
+
+test('does not let immutable override no-store', async () => {
+  const worker = createWorker({ fetch: async () => new Response('asset', { headers: {
+    'x-dsh-upstream-cache-control': 'no-store, immutable',
+    etag: '"v1"',
+  } }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(assetKeys(worker).length, 0)
+})
+
+test('keeps no-cache responses on the network when revalidation is disabled', async () => {
+  const worker = createWorker({ fetch: etagFetch(), config: workerConfig({ revalidate: false }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(assetKeys(worker).length, 0)
+  const second = await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(await second.response.text(), 'asset-v1')
+  assert.equal(conditionalRequests(worker).length, 0)
+})
+
+test('revalidates an expired max-age entry that carries a validator', async () => {
+  const worker = createWorker({ fetch: etagFetch({ policy: 'public, max-age=1' }) })
+  await init(worker)
+  await worker.fetchEvent(new Request(ASSET_A))
+  worker.clock.now += 1_001
+  const before = worker.requests.length
+  await worker.fetchEvent(new Request(ASSET_A))
+  assert.equal(worker.requests.slice(before).filter(request => request.headers.get('if-none-match') === '"v1"').length, 1)
+  const stats = await worker.message({ type: 'stats' })
+  assert.equal(stats.revalidated, 1)
+})
+
+test('primes a no-cache entry that carries a validator', async () => {
+  const worker = createWorker({ fetch: etagFetch() })
+  await init(worker)
+  const reply = await worker.message({ type: 'prime', urls: [ASSET_A] })
+  assert.equal(reply.fetched, 1)
+  assert.deepEqual(assetKeys(worker), [ASSET_A])
 })

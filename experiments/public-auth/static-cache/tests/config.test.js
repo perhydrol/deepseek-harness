@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { DEFAULTS, resolveConfig } from '../src/config.js'
+import { DEFAULTS, resolveConfig } from '../dist/config.js'
 
 test('applies documented defaults', () => {
   const config = resolveConfig(undefined)
@@ -10,6 +10,7 @@ test('applies documented defaults', () => {
   assert.deepEqual(config.exclude, ['/plugins/events'])
   assert.equal(config.prime, true)
   assert.equal(config.concurrency, 4)
+  assert.equal(config.revalidate, true)
   assert.ok(Object.isFrozen(config))
 })
 
@@ -25,11 +26,13 @@ test('accepts a full override', () => {
     maxEntryBytes: 512,
     graceMinutes: 1,
     maxAgeDays: 2,
+    revalidate: false,
   })
   assert.equal(config.route, '/x/sw.js')
   assert.deepEqual(config.prefixes, ['/assets/'])
   assert.equal(config.prime, false)
   assert.equal(config.maxCacheBytes, 1024)
+  assert.equal(config.revalidate, false)
 })
 
 test('rejects a prefix outside the scope on a segment boundary', () => {

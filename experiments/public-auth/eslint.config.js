@@ -23,14 +23,16 @@ const staticCacheGlobals = {
   clearTimeout: 'readonly',
   console: 'readonly',
   process: 'readonly',
+  __DSH_BOOT__: 'readonly',
+  __DSH_STATIC_CACHE__: 'writable',
 }
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**'] },
+  { ignores: ['dist/**', 'static-cache/dist/**', 'node_modules/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    files: ['static-cache/**/*.js'],
+    files: ['static-cache/**/*.{js,ts}'],
     languageOptions: { globals: staticCacheGlobals },
   },
 )

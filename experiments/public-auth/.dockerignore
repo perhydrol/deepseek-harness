@@ -1,5 +1,7 @@
 node_modules
 dist
+static-cache/dist
+static-cache/node_modules
 state
 launch-url.txt
 *.env

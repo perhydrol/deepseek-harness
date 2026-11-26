@@ -7,27 +7,26 @@ profile plugin. It keeps the deployment's authentication untouched: the
 service worker only stores bytes that an authenticated page already fetched
 with its session cookie.
 
-Storage requires `X-DSH-Upstream-Cache-Control` from the authentication proxy to declare a positive `max-age`, without `no-store` or `no-cache`; missing policy is denied. Every cache hit checks `/_auth/session` over the network. Logout requests purge the cache even without page navigation. Old cache generations are removed on worker activation. The default `prefixes` include `/font-replacement/` for the font replacement plugin: its hashed WOFF2 files qualify, while its `no-cache` stylesheet stays on the network.
+Storage requires `X-DSH-Upstream-Cache-Control` from the authentication proxy to declare a positive `max-age`, or a `no-cache` / `max-age=0` response carrying an `ETag` or `Last-Modified`. Missing policy and `no-store` are denied. `no-cache` entries are stored and revalidated on every use; `immutable` entries are reused without resource validation while fresh. Every cache hit still checks `/_auth/session` over the network. Logout requests purge the cache even without page navigation. Old cache generations are removed on worker activation. The default `prefixes` include `/font-replacement/` for the font replacement plugin: its hashed WOFF2 files are immutable, while its `no-cache` stylesheet is revalidated through its ETag.
 
 ## What it caches
 
 | Path | Cached | Why |
 |---|---|---|
-| `/assets/*` (hashed JS, CSS, fonts, images) | yes | content-addressed, immutable |
-| `/plugins/??...&rev=` (combo bundles, chunks, package assets) | yes | revisioned by DSH |
+| `/assets/*` (hashed JS, CSS, fonts, images) | yes, revalidated | DSH serves `no-cache` with an ETag |
+| `/plugins/??...&rev=` (combo bundles, chunks, package assets) | yes | revisioned by DSH and `immutable` |
+| `/font-replacement/*.woff2` | yes | hashed and `immutable` |
+| `/font-replacement/fonts.css` | yes, revalidated | `no-cache` with an ETag |
 | `/` (index) | no | carries per-peer boot injections |
 | `/api/*` | no | session-scoped responses |
 | `/plugins/events` (SSE) | no | long-lived stream |
 | `/_auth/*`, `/connect` | no | authentication |
 
-Cache-first delivery means a second visit makes no network request for these
-paths. API latency is unchanged: this plugin removes static round trips, not
-RPC round trips.
+A `no-cache` entry becomes a cache hit only after the origin answers 304; a 200 replaces the stored bytes. An `immutable` entry is served directly while its `max-age` is fresh and is revalidated only after it expires. Cached delivery removes static round trips; API latency is unchanged.
 
 ## Install (container deployment)
 
-The plugin ships at `/opt/static-cache` in the image. Enable it once per
-profile:
+The plugin ships built at `/opt/static-cache` in the image. Enable it once per profile:
 
 ```sh
 docker compose --env-file server.env exec harness sh /opt/static-cache/enable.sh
@@ -36,13 +35,10 @@ docker compose --env-file server.env restart harness
 
 The script performs the two steps the profile needs:
 
-1. copies the package to `<profile>/node_modules/@perhydrol/dsh-static-cache`
-   and records it under `dependencies` in `<profile>/package.json`;
-2. appends an `insert` row for the plugin to the profile's `cordis.patch.yml`
-   unless the row is already present.
+1. copies the built package (`package.json` and `dist/`) to `<profile>/node_modules/@perhydrol/dsh-static-cache` and records it under `dependencies` in `<profile>/package.json`;
+2. appends an `insert` row for the plugin to the profile's `cordis.patch.yml` unless the row is already present.
 
-Both steps are idempotent. The profile lives in the `data` volume, so they
-survive container recreation; rerun the script after restoring an older volume.
+Both steps are idempotent. The profile lives in the `data` volume, so they survive container recreation; rerun the script after restoring an older volume. The package is authored in TypeScript under `src/`; the image build compiles it to `dist/` and runs its tests before copying it.
 
 ## Configuration
 
@@ -59,7 +55,10 @@ The row's `config` accepts every field below; all are optional.
 | `maxCacheBytes` | 64 MiB | Whole-cache bound; least recent entries evict first |
 | `maxEntryBytes` | 32 MiB | Larger responses are served but never stored |
 | `graceMinutes` | `10` | How long a previous build's entries survive a deploy |
-| `maxAgeDays` | `30` | Entries not written for this long are removed, whether or not a page still uses them |
+| `maxAgeDays` | `30` | Entries not written or revalidated for this long are removed |
+| `revalidate` | `true` | Revalidate stale entries that carry an ETag or Last-Modified |
+
+`revalidate: false` disables validator handling: `no-cache` and `max-age=0` responses are not stored, and stale entries that remain from an older deployment fall back to a full fetch. Positive `max-age` responses stay cacheable.
 
 Example row:
 
@@ -86,7 +85,10 @@ The page sends the client graph revision (`__DSH_BOOT__.rev`) and its own
   after a deploy is not downloaded twice;
 * a navigation to `/_auth/login` (logout or an expired session) deletes the
   whole cache;
-* `maxAgeDays` and `maxCacheBytes` bound how long entries are kept and the total size.
+* `maxAgeDays` and `maxCacheBytes` bound how long entries are kept and the total size;
+* a 304 revalidation refreshes the entry's `storedAt`, so an actively revalidated `no-cache` entry is not removed by age.
+
+`maxAgeDays` remains a local retention bound. A 304 refreshes `storedAt`; a fresh `immutable` hit does not, so an entry used only through fresh hits can still be removed after this many days without a write or revalidation.
 
 Stable-path package assets (`/plugins/<pkg>/assets/*`) depend on the client
 graph revision, which hashes bundle artifacts rather than those files. An
@@ -98,17 +100,17 @@ assets change independently.
 
 In DevTools open one authenticated page twice:
 
-* Network shows `/assets/*` and `/plugins/*` with size `(ServiceWorker)` and
-  0 asset bytes transferred on the second load, with a separate session check;
+* on the second load, `/plugins/*` shows `(ServiceWorker)` and 0 asset bytes;
+* `/assets/*` and `/font-replacement/fonts.css` show a 304 response and `(ServiceWorker)`, with the body served from Cache Storage;
 * `/api/*` still appears on the network;
-* `await __DSH_STATIC_CACHE__.stats()` reports `entries`, `bytes`, `rev`,
-  `hits`, `evicted`, `reconciled`, and `lastPrune`; entries and bytes count
-  live cache entries after metadata reconciliation;
+* `await __DSH_STATIC_CACHE__.stats()` reports `entries`, `bytes`, `rev`, `hits`, `misses`, `stored`, `evicted`, `reconciled`, `revalidated`, `dropped`, and `lastPrune`; `entries` and `bytes` count live cache entries after metadata reconciliation;
+* a fresh `immutable` entry sends no `If-None-Match`; a `no-cache` entry does;
 * a failed registration logs one `console.warn` instead of failing silently;
 * logging out and returning to the login page leaves `caches.keys()` empty.
 
 The first authenticated load after enabling the plugin downloads the assets
-once more to fill the cache; later loads reuse it until the deployment changes.
+once more to fill the cache; later loads reuse them until the deployment changes.
+`no-cache` assets keep requiring one conditional request per load.
 
 ## Remove
 
@@ -124,12 +126,21 @@ still enabled, `await __DSH_STATIC_CACHE__.purge()` clears it immediately.
 * Only versioned static bytes are stored. The worker refuses HTML, API
   responses, SSE, redirected responses, range requests, and any response
   carrying `Set-Cookie`, so the cache holds no session state.
+* A `no-cache` entry is never replayed without a network validation. An
+  `immutable` entry skips resource validation while fresh but still requires
+  the `/_auth/session` probe.
 * Cache Storage entries live in the browser profile; a logged-out user on the
   same device cannot open the app, and the next login page visit purges the
   cache.
 
 ## Limitations
 
+* `no-cache` entries need one conditional round trip per use; the first use
+  after a content change downloads the full body.
+* If the proxy strips `ETag` or `Last-Modified`, `no-cache` responses are not
+  stored because they cannot be validated.
+* `maxAgeDays` can remove an `immutable` entry earlier than its origin
+  `max-age`, because retention is a local bound.
 * Local latency for RPC calls is unchanged.
 * The cache is per browser profile and per origin; incognito sessions start
   cold.
@@ -140,9 +151,10 @@ still enabled, `await __DSH_STATIC_CACHE__.purge()` clears it immediately.
 ## Tests
 
 ```sh
-cd experiments/public-auth/static-cache && node --test tests/*.test.js
+cd experiments/public-auth/static-cache && npm test
 ```
 
-The service-worker tests execute the real worker source in a VM against a fake
-Cache Storage, covering generation changes, grace-pruning, logout purge,
-priming, eviction, and streamed responses.
+The test script builds the TypeScript sources into `dist/` and executes the
+real worker source in a VM against a fake Cache Storage. It covers generation
+changes, grace-pruning, logout purge, priming, eviction, streamed responses,
+ETag revalidation, immutable reload behavior, and revalidation failures.

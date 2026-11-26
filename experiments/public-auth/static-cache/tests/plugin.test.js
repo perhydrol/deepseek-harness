@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { apply, workerSource } from '../src/index.js'
-import { resolveConfig } from '../src/config.js'
+import { apply, workerSource } from '../dist/index.js'
+import { resolveConfig } from '../dist/config.js'
 
 function createHost() {
   const routes = []
@@ -27,7 +27,7 @@ function createHost() {
   return { ctx, routes, listeners }
 }
 
-/** @param {(typeof import('../src/index.js'))['apply']} _apply */
+/** @param {(typeof import('../dist/index.js'))['apply']} _apply */
 function invoke(route, method = 'GET') {
   const captured = { status: 0, headers: {}, body: undefined }
   route.handler({ method, url: route.path }, {
@@ -64,7 +64,9 @@ test('bakes the resolved policy into the served worker', () => {
   assert.ok(source.includes('"concurrency":2'))
   assert.ok(source.includes('"graceMs":60000'))
   assert.ok(source.includes('"maxAgeMs":172800000'))
+  assert.ok(source.includes('"revalidate":true'))
   assert.ok(!source.includes('dsh-static-cache:config'))
+  assert.doesNotMatch(source, /^\s*(?:import|export)\s/m)
 })
 
 test('answers HEAD without a body and other methods with 405', () => {

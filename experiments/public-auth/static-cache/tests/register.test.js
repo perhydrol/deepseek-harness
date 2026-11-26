@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveConfig } from '../src/config.js'
-import { pageScriptConfig, registerScript } from '../src/register.js'
+import { resolveConfig } from '../dist/config.js'
+import { pageScriptConfig, registerScript } from '../dist/register.js'
 
 const config = resolveConfig({})
 

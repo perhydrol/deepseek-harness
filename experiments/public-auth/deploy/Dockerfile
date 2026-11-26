@@ -10,6 +10,8 @@ COPY tsconfig.json ./
 COPY src ./src
 COPY tsconfig.tests.json eslint.config.js ./
 COPY tests ./tests
+COPY static-cache ./static-cache
+RUN cd static-cache && ../node_modules/.bin/tsc -b tsconfig.json && node --test tests/*.test.js
 RUN pnpm check && pnpm test && pnpm build && pnpm prune --prod
 
 FROM node:24-trixie-slim
@@ -28,7 +30,7 @@ COPY --from=proxy-build /app/node_modules /opt/auth/node_modules
 COPY --from=proxy-build /app/dist /opt/auth/dist
 # Optional browser cache plugin; enable once per profile with
 # `sh /opt/static-cache/enable.sh` and restart the container.
-COPY static-cache /opt/static-cache
+COPY --from=proxy-build /app/static-cache /opt/static-cache
 COPY deploy/supervisord.conf /etc/supervisor/dsh.conf
 ENV NODE_ENV=production HOME=/home/node DSH_HOME=/var/lib/dsh \
     UV_CACHE_DIR=/var/lib/uv/cache UV_PYTHON_INSTALL_DIR=/var/lib/uv/python/managed \

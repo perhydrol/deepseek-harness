@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs'
 import vm from 'node:vm'
 
-const CONFIG_MARKER = '/* dsh-static-cache:config */null'
+const CONFIG_MARKER = /\/\*\s*dsh-static-cache:config\s*\*\/\s*null/
 
 /** Policy the Host would bake into the served worker. */
 export const DEFAULT_WORKER_CONFIG = Object.freeze({
@@ -14,6 +14,7 @@ export const DEFAULT_WORKER_CONFIG = Object.freeze({
   maxEntryBytes: 32 * 1024 * 1024,
   graceMs: 600_000,
   maxAgeMs: 30 * 24 * 60 * 60 * 1000,
+  revalidate: true,
 })
 
 /** @param {Partial<typeof DEFAULT_WORKER_CONFIG>} [overrides] */
@@ -113,6 +114,8 @@ export function createWorker(options = {}) {
   const clock = { now: options.now ?? 1_000_000 }
   const caches = options.caches ?? new FakeCaches()
   const calls = []
+  /** @type {Request[]} */
+  const requests = []
 
   /** @param {unknown} request */
   const urlOf = request => {
@@ -124,7 +127,15 @@ export function createWorker(options = {}) {
     const url = urlOf(request)
     if (new URL(url).pathname === '/_auth/session') return new Response('{}')
     calls.push(url)
-    return new Response(`body:${url}`, { status: 200, headers: { 'content-length': String(url.length), 'x-dsh-upstream-cache-control': 'private, max-age=60' } })
+    const etag = `"${url}"`
+    if (request.headers.get('if-none-match') === etag) {
+      return new Response(null, { status: 304, headers: { etag, 'x-dsh-upstream-cache-control': 'private, max-age=60' } })
+    }
+    return new Response(`body:${url}`, { status: 200, headers: {
+      'content-length': String(url.length),
+      'x-dsh-upstream-cache-control': 'private, max-age=60',
+      etag,
+    } })
   }
 
   const self = {
@@ -145,14 +156,20 @@ export function createWorker(options = {}) {
     }
   }
 
-  const source = readFileSync(new URL('../src/service-worker.js', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../dist/service-worker.js', import.meta.url), 'utf8')
   if (source.split(CONFIG_MARKER).length !== 2) throw new Error('worker source lost its config marker')
   const configured = source.replace(CONFIG_MARKER, JSON.stringify(options.config ?? DEFAULT_WORKER_CONFIG))
+
+  const fetchImpl = options.fetch ?? defaultFetch
+  const recordedFetch = async (request) => {
+    requests.push(request)
+    return fetchImpl(request)
+  }
 
   const context = vm.createContext({
     self,
     caches,
-    fetch: options.fetch ?? defaultFetch,
+    fetch: recordedFetch,
     Request,
     Response,
     Headers,
@@ -207,5 +224,5 @@ export function createWorker(options = {}) {
     return { handled: true, response }
   }
 
-  return { self, caches, calls, clock, message, fetchEvent, dispatch }
+  return { self, caches, calls, requests, clock, message, fetchEvent, dispatch }
 }

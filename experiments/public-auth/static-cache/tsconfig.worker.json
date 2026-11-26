@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "target": "ES2023",
+    "module": "ES2022",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "lib": ["ES2023", "WebWorker"],
+    "types": [],
+    "tsBuildInfoFile": "dist/.tsbuildinfo-worker"
+  },
+  "include": ["src/service-worker.ts"]
+}

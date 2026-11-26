@@ -15,14 +15,16 @@ TARGET="$PROFILE/node_modules/@perhydrol/dsh-static-cache"
   echo "enable-static-cache: profile not found: $PROFILE" >&2
   exit 1
 }
-[ -f "$PACKAGE/src/index.js" ] || {
-  echo "enable-static-cache: package not found: $PACKAGE" >&2
+[ -f "$PACKAGE/dist/index.js" ] && [ -f "$PACKAGE/dist/service-worker.js" ] || {
+  echo "enable-static-cache: package is not built: $PACKAGE/dist" >&2
   exit 1
 }
 
-mkdir -p "$PROFILE/node_modules/@perhydrol" "$TARGET/src"
+mkdir -p "$TARGET"
 cp "$PACKAGE/package.json" "$TARGET/package.json"
-cp -R "$PACKAGE/src/." "$TARGET/src/"
+mkdir -p "$TARGET/dist"
+cp -R "$PACKAGE/dist/." "$TARGET/dist/"
+rm -f "$TARGET/dist/.tsbuildinfo-"*
 
 node - "$PROFILE" "$NAME" "$PACKAGE" <<'NODE'
 const fs = require('node:fs')
