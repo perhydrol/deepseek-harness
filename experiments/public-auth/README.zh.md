@@ -22,7 +22,7 @@ node dist/main.js init --state ./state
 node dist/main.js serve --origin http://127.0.0.1:8080 --launch-url-file ./launch-url.txt --state ./state
 ```
 
-浏览器访问 `/` 会跳转到 `/_auth/login`。HttpOnly、SameSite=Strict 的持久 Cookie 默认有效 30 天，可通过 `--session-days` 调整，不采用滑动续期。HTTPS 来源额外设置 Secure 和 `__Secure-` 前缀。浏览器 JavaScript 不会将凭证写入 localStorage。带同源 Origin 请求头的 `POST /_auth/logout` 撤销该会话并断开其 WebSocket；会话到期也会断开其 WebSocket。`GET /_auth/session` 检查登录状态。已验证的会话默认在进程内有界缓存 60 秒（`--session-cache-seconds`；`0` 禁用）。注销会立即失效对应缓存，每次请求都会检查会话到期时间；直接删除 SQLite 中的会话时，最多仍可使用一个缓存生命周期。
+未登录时，GET 页面导航返回 HTTP 303，跳转至 `/_auth/login`。代理优先使用 Fetch Metadata，仅在两个导航标头均缺失时才根据显式接受 `text/html` 的 `Accept` 判断。其他未登录请求返回 HTTP 401，包括 WebSocket 升级。登录页须在框架外打开。HttpOnly、SameSite=Strict 的持久 Cookie 默认有效 30 天，可通过 `--session-days` 调整，不采用滑动续期。HTTPS 来源额外设置 Secure 和 `__Secure-` 前缀。浏览器 JavaScript 不会将凭证写入 localStorage。带同源 Origin 请求头的 `POST /_auth/logout` 撤销该会话并断开其 WebSocket；会话到期也会断开其 WebSocket。`GET /_auth/session` 检查登录状态。已验证的会话默认在进程内有界缓存 60 秒（`--session-cache-seconds`；`0` 禁用）。注销会立即失效对应缓存，每次请求都会检查会话到期时间；直接删除 SQLite 中的会话时，最多仍可使用一个缓存生命周期。
 
 所有已鉴权响应（包括静态资源）使用 `Cache-Control: no-store`。代理通过 `X-DSH-Upstream-Cache-Control` 传递 DSH 原始缓存策略，并覆盖上游同名响应头。[可选静态缓存插件](static-cache/README.zh.md) 按此策略决定是否写入浏览器 Cache Storage，读取缓存前校验会话。共享代理和 CDN 缓存必须保持关闭。
 

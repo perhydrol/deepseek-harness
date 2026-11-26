@@ -111,6 +111,34 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
     await rm(directory, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 })
   })
   const common = { host: 'dsh.example.test', origin: PUBLIC, 'user-agent': 'activity-test-browser' }
+  await t.test('anonymous page navigations redirect to login', async () => {
+    for (const metadata of [
+      { 'sec-fetch-dest': 'document' },
+      { 'sec-fetch-dest': 'iframe' },
+      { 'sec-fetch-mode': 'navigate', accept: '*/*' },
+      { accept: 'Text/HTML,application/xhtml+xml,*/*;q=0.8' },
+    ]) {
+      const response = await app.inject({ url: '/', headers: { ...common, ...metadata } })
+      assert.equal(response.statusCode, 303)
+      assert.equal(response.headers.location, '/_auth/login')
+      assert.equal(response.headers['cache-control'], 'no-store')
+    }
+  })
+  await t.test('anonymous non-navigation requests receive 401', async () => {
+    for (const headers of [
+      { accept: '*/*' },
+      { accept: 'application/json' },
+      { accept: 'text/html;q=0, */*' },
+      { accept: 'text/html', 'sec-fetch-mode': 'cors' },
+      { accept: 'text/html', 'sec-fetch-dest': 'empty' },
+    ]) {
+      const response = await app.inject({ url: '/api/session', headers: { ...common, ...headers } })
+      assert.equal(response.statusCode, 401)
+      assert.equal(response.headers.location, undefined)
+    }
+    const response = await app.inject({ method: 'POST', url: '/', headers: { ...common, accept: 'text/html' } })
+    assert.equal(response.statusCode, 401)
+  })
   assert.equal((await app.inject({ url: '/_auth/login', headers: common })).headers['referrer-policy'], 'same-origin')
   assert.equal((await app.inject({ method: 'POST', url: '/_auth/login', headers: { ...common, origin: 'null' } })).statusCode, 403)
   const login = await app.inject({
@@ -221,7 +249,9 @@ test('private upstream exchange, session persistence, HTTP, WS, and revocation',
   const freshLogin = await app.inject({ method: 'POST', url: '/_auth/login', headers: { ...common, 'content-type': 'application/x-www-form-urlencoded' }, payload: new URLSearchParams({ password: PASSWORD }).toString() })
   const freshCookies = freshLogin.headers['set-cookie']
   headers.cookie = String(Array.isArray(freshCookies) ? freshCookies.find(value => value.includes('dsh-proxy=')) : freshCookies).split(';')[0]!
-  const refused = new WebSocket(listen.replace('http:', 'ws:') + '/api/remote.mux', { headers: common })
+  const refused = new WebSocket(listen.replace('http:', 'ws:') + '/api/remote.mux', {
+    headers: { ...common, accept: 'text/html' },
+  })
   const rejected = new Promise<number>((resolve, reject) => {
     refused.on('unexpected-response', (_request, response) => { response.resume(); refused.terminate(); resolve(response.statusCode ?? 0) })
     refused.on('open', () => reject(new Error('Anonymous websocket admitted')))

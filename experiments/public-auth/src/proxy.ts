@@ -30,6 +30,22 @@ interface ActiveSession {
   session: { id: string; expiresAt: Date }
 }
 
+/** Identify anonymous page requests using Fetch Metadata, with an HTML fallback for older clients. */
+function isLoginNavigation({ method, headers }: FastifyRequest): boolean {
+  if (method !== 'GET' || headers.upgrade !== undefined) return false
+  const mode = headers['sec-fetch-mode']
+  if (mode !== undefined) return mode === 'navigate'
+  const destination = headers['sec-fetch-dest']
+  if (destination !== undefined) {
+    return destination === 'document' || destination === 'iframe' || destination === 'frame'
+  }
+  return headers.accept?.split(',').some(range => {
+    const [type, ...parameters] = range.split(';')
+    return type?.trim().toLowerCase() === 'text/html'
+      && !parameters.some(parameter => /^\s*q\s*=\s*0(?:\.0*)?\s*$/i.test(parameter))
+  }) ?? false
+}
+
 /** Locate the signed session cookie without verifying it.
  * @param headers Incoming request headers.
  * @param name Effective session cookie name.
@@ -207,7 +223,7 @@ export async function createProxy(config: ProxyConfig, activityClock: () => numb
     if (url.pathname === '/_auth/login') return
     const session = await getSession(request)
     if (!session) {
-      if (request.method === 'GET' && request.headers['sec-fetch-dest'] === 'document') {
+      if (isLoginNavigation(request)) {
         return reply.redirect('/_auth/login', 303)
       }
       return reply.code(401).send('请先在 /_auth/login 登录')
